@@ -74,7 +74,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "master/buildZip/*"
-          owner: "suwayomi"
+          owner: "kolbyml"
           repo: "Suwayomi-WebUI"
           tag: ${{ steps.GenTagName.outputs.value }}
           draft: true
