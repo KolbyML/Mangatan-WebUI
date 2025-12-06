@@ -135,7 +135,7 @@ export const Appearance = () => {
                         }
                     />
                     <Select
-                        value={i18nResources.includes(i18n.language as I18nResourceCode) ? i18n.language : 'en'}
+                        value={i18nResources.includes(i18n.language as I18nResourceCode) ? i18n.language : 'ja'}
                         onChange={({ target: { value: language } }) =>
                             i18n.changeLanguage(language, (e) => {
                                 if (e) {

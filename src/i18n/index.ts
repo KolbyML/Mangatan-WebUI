@@ -44,7 +44,7 @@ export const i18n = use(initReactI18next)
     .use(LanguageDetector)
     .init({
         supportedLngs: i18nResources,
-        fallbackLng: 'en',
+        fallbackLng: 'ja',
 
         backend: {
             loadPath: `${SubpathUtil.getSubpath()}/locales/{{lng}}.json`,

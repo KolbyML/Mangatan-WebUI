@@ -90,13 +90,7 @@ export const toComparableLanguage = (code: string): string => getLanguage(code).
 export const toComparableLanguages = (codes: string[]): string[] => codes.map(toComparableLanguage);
 
 function defaultNativeLang(): readonly string[] {
-    const preferredLanguages = toUniqueLanguageCodes([...navigator.languages]);
-
-    if (!preferredLanguages.length) {
-        return ['en'];
-    }
-
-    return preferredLanguages;
+    return ['ja'];
 }
 
 export function getDefaultLanguages(): string[] {
