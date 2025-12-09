@@ -15,10 +15,9 @@ import Divider from '@mui/material/Divider';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { ListItemLink } from '@/base/components/lists/ListItemLink.tsx';
 import { LoadingPlaceholder } from '@/base/components/feedback/LoadingPlaceholder.tsx';
-import { UpdateState } from '@/lib/graphql/generated/graphql.ts';
 import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 import { EmptyViewAbsoluteCentered } from '@/base/components/feedback/EmptyViewAbsoluteCentered.tsx';
-import { VersionInfo } from '@/features/app-updates/components/VersionInfo.tsx';
+import { VersionInfo, WebUIVersionInfo } from '@/features/app-updates/components/VersionInfo.tsx';
 import { getErrorMessage } from '@/lib/HelperFunctions.ts';
 import { epochToDate } from '@/base/utils/DateHelper.ts';
 import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
@@ -36,19 +35,6 @@ export function About() {
         refetch: checkForServerUpdate,
         error: serverUpdateCheckError,
     } = requestManager.useCheckForServerUpdate({ notifyOnNetworkStatusChange: true });
-    const {
-        data: webUIUpdateData,
-        loading: isCheckingForWebUIUpdate,
-        refetch: checkForWebUIUpdate,
-        error: orgWebUIUpdateCheckError,
-    } = requestManager.useCheckForWebUIUpdate({ notifyOnNetworkStatusChange: true });
-    const webUIUpdateCheckError = orgWebUIUpdateCheckError || webUIUpdateData?.checkForWebUIUpdate.tag === '';
-
-    const { data: webUIUpdateStatusData } = requestManager.useGetWebUIUpdateStatus();
-    const { state: webUIUpdateState, progress: webUIUpdateProgress } = webUIUpdateStatusData?.getWebUIUpdateStatus ?? {
-        state: UpdateState.Idle,
-        progress: 0,
-    };
 
     if (loading) {
         return <LoadingPlaceholder />;
@@ -70,7 +56,6 @@ export function About() {
     );
     const isServerUpdateAvailable =
         !!selectedServerChannelInfo?.tag && selectedServerChannelInfo.tag !== aboutServer.version;
-    const isWebUIUpdateAvailable = !!webUIUpdateData?.checkForWebUIUpdate.updateAvailable;
 
     return (
         <List sx={{ pt: 0 }}>
@@ -130,20 +115,7 @@ export function About() {
                     <ListItemText
                         primary={t('settings.about.webui.label.version')}
                         secondary={
-                            <VersionInfo
-                                version={aboutWebUI.tag}
-                                isCheckingForUpdate={isCheckingForWebUIUpdate}
-                                isUpdateAvailable={isWebUIUpdateAvailable}
-                                updateCheckError={webUIUpdateCheckError}
-                                checkForUpdate={checkForWebUIUpdate}
-                                triggerUpdate={() =>
-                                    requestManager
-                                        .updateWebUI()
-                                        .response.catch(defaultPromiseErrorHandler('About::updateWebUI'))
-                                }
-                                progress={webUIUpdateProgress}
-                                updateState={webUIUpdateState}
-                            />
+                            <WebUIVersionInfo />
                         }
                     />
                 </ListItem>

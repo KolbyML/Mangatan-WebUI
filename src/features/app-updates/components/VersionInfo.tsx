@@ -164,3 +164,18 @@ export const VersionInfo = ({
         </Stack>
     );
 };
+
+
+export const WebUIVersionInfo = () => {
+    return (
+        <Stack
+            sx={{
+                alignItems: 'start',
+            }}
+        >
+            <Typography component="span" variant="body2">
+                Bundled with Mangatan
+            </Typography>
+        </Stack>
+    );
+};
