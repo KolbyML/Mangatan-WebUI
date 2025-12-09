@@ -1,6 +1,6 @@
 # Contributing
 ## Where should I start?
-Everything from https://github.com/KolbyML/Suwayomi-Server/blob/master/CONTRIBUTING.md#where-should-i-start applies here.
+Everything from https://github.com/Suwayomi/Suwayomi-Server/blob/master/CONTRIBUTING.md#where-should-i-start applies here.
 
 ## About this project
 
