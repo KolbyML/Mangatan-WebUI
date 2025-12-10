@@ -60,6 +60,7 @@ export const cleanPunctuation = (text: string): string => {
         .replace(/[ ]*(\?!)+/g, '⁈')
         .replace(/[ ]*\u2026+/g, '…')
         .replace(/[ ]*\u30FB\u30FB+/g, '…')
+        .replace(/[ ]*\uFF65\uFF65+/g, '…')
         .replace(/[ ]*-+/g, 'ー')
         .replace(/[ ]*\u2013+/g, '―')
         .replace(/[ ]*:+[ ]*/g, '…');
