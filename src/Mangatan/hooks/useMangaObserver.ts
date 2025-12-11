@@ -6,13 +6,11 @@ export const useMangaObserver = () => {
     const [images, setImages] = useState<HTMLImageElement[]>([]);
 
     useEffect(() => {
-        // FIX: Use destructuring to satisfy prefer-destructuring
         const { imageContainerSelectors: selectors } = settings.site;
 
         const scan = () => {
             const found: HTMLImageElement[] = [];
 
-            // 1. Try Configured Selectors
             selectors.forEach((sel) => {
                 const nodes = document.querySelectorAll(sel);
                 nodes.forEach((node) => {
@@ -21,14 +19,19 @@ export const useMangaObserver = () => {
                 });
             });
 
-            // 2. Fallback Heuristic (for Suwayomi)
             if (found.length === 0) {
                 document.querySelectorAll('img[src*="/chapter/"]').forEach((img) => {
                     if (img instanceof HTMLImageElement && img.naturalHeight > 400) found.push(img);
                 });
             }
 
-            const unique = Array.from(new Set(found)).filter((img) => img.naturalHeight > 200 && img.isConnected);
+            const unique = Array.from(new Set(found)).filter((img) => {
+                if (!img.isConnected || img.naturalHeight <= 200) return false;
+                
+                if (img.src.includes('thumbnail')) return false;
+
+                return true;
+            });
 
             setImages((prev) => {
                 if (prev.length === unique.length && prev.every((img, i) => img.src === unique[i].src)) return prev;
