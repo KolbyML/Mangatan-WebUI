@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { Settings, DEFAULT_SETTINGS, MergeState, OcrBlock, COLOR_THEMES } from '@/Mangatan/types';
 
+export type OcrStatus = 'loading' | 'error' | 'success' | 'idle';
+
 interface OCRContextType {
     settings: Settings;
     setSettings: React.Dispatch<React.SetStateAction<Settings>>;
     ocrCache: Map<string, OcrBlock[]>;
     updateOcrData: (imgSrc: string, data: OcrBlock[]) => void;
+    ocrStatusMap: Map<string, OcrStatus>;
+    setOcrStatus: (imgSrc: string, status: OcrStatus) => void;    
     mergeAnchor: MergeState;
     setMergeAnchor: React.Dispatch<React.SetStateAction<MergeState>>;
     activeImageSrc: string | null;
@@ -23,6 +27,7 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const [ocrCache, setOcrCache] = useState<Map<string, OcrBlock[]>>(new Map());
+    const [ocrStatusMap, setOcrStatusMap] = useState<Map<string, OcrStatus>>(new Map());    
     const [mergeAnchor, setMergeAnchor] = useState<MergeState>(null);
     const [activeImageSrc, setActiveImageSrc] = useState<string | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
@@ -42,6 +47,10 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
     const updateOcrData = useCallback((imgSrc: string, data: OcrBlock[]) => {
         setOcrCache((prev) => new Map(prev).set(imgSrc, data));
     }, []);
+
+    const setOcrStatus = useCallback((imgSrc: string, status: OcrStatus) => {
+         setOcrStatusMap((prev) => new Map(prev).set(imgSrc, status));
+    }, []);    
 
     useEffect(() => {
         localStorage.setItem('mangatan_settings_v3', JSON.stringify(settings));
@@ -71,6 +80,8 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
             setSettings,
             ocrCache,
             updateOcrData,
+            ocrStatusMap, 
+            setOcrStatus,
             mergeAnchor,
             setMergeAnchor,
             activeImageSrc,
@@ -78,7 +89,7 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
             debugLog,
             addLog,
         }),
-        [settings, ocrCache, updateOcrData, mergeAnchor, activeImageSrc, debugLog, addLog],
+        [settings, ocrCache, updateOcrData, ocrStatusMap, setOcrStatus, mergeAnchor, activeImageSrc, debugLog, addLog],
     );
 
     return <OCRContext.Provider value={contextValue}>{children}</OCRContext.Provider>;
