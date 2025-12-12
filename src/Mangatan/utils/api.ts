@@ -50,6 +50,32 @@ export const apiRequest = async <T>(
     return json;
 };
 
+export type ChapterStatus = 'idle' | 'processing' | 'processed';
+
+export const checkChapterStatus = async (baseUrl: string): Promise<ChapterStatus> => {
+    try {
+        const res = await apiRequest<{ status: string }>('/api/ocr/is-chapter-preprocessed', {
+            method: 'POST',
+            body: { base_url: baseUrl, context: 'Check Status' }
+        });
+        
+        // Map backend response to our type
+        if (res.status === 'processing') return 'processing';
+        if (res.status === 'processed') return 'processed';
+        return 'idle';
+    } catch (e) {
+        console.error("Failed to check chapter status", e);
+        return 'idle';
+    }
+};
+
+export const preprocessChapter = async (baseUrl: string): Promise<void> => {
+    await apiRequest('/api/ocr/preprocess-chapter', {
+        method: 'POST',
+        body: { base_url: baseUrl, context: document.title }
+    });
+};
+
 export const cleanPunctuation = (text: string): string => {
     if (!text) return text;
     let t = text

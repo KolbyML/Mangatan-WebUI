@@ -216,3 +216,51 @@ html.ocr-reader-mode body {
     50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
     100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
 }
+
+/* Chapter Process Buttons */
+.ocr-chapter-btn {
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    text-transform: uppercase;
+    line-height: 1.5;
+}
+
+.ocr-chapter-btn.process {
+    color: var(--ocr-accent);
+    border-color: var(--ocr-accent);
+}
+
+.ocr-chapter-btn.process:hover {
+    background-color: rgba(72, 144, 255, 0.1);
+}
+
+.ocr-chapter-btn.process.busy {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.ocr-chapter-btn.done {
+    color: #27ae60;
+    border-color: #27ae60;
+    background-color: rgba(39, 174, 96, 0.1);
+    cursor: default;
+}
+
+.ocr-chapter-btn.loading {
+    border: none;
+    color: #888;
+}
+
+.right-side-actions {
+  display: flex;         
+  flex-direction: row; 
+  align-items: center;   
+  gap: 10px;            
+}

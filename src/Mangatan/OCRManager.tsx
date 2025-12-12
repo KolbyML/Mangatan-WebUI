@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMangaObserver } from './hooks/useMangaObserver';
 import { ImageOverlay } from './components/ImageOverlay';
 import { SettingsModal } from './components/SettingsModal';
+import { ChapterListInjector } from './components/ChapterListInjector'; 
 
 export const OCRManager = () => {
     const images = useMangaObserver(); 
@@ -35,8 +36,10 @@ export const OCRManager = () => {
     }, []);
     // -------------------------
 
-    return (
+return (
         <>
+            <ChapterListInjector />
+            
             {images.map(img => <ImageOverlay key={img.src} img={img} />)}
             
             <div className="ocr-controls">
