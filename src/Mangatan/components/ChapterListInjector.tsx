@@ -1,8 +1,26 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ChapterProcessButton } from './ChapterProcessButton';
+import { useOCR } from '@/Mangatan/context/OCRContext';
+import { AuthCredentials } from '@/Mangatan/utils/api';
 
 export const ChapterListInjector: React.FC = () => {
+    const { serverSettings } = useOCR();
+    
+    const credsRef = useRef<AuthCredentials | undefined>(undefined);
+
+    // Keep the ref updated whenever serverSettings changes
+    useEffect(() => {
+        if (serverSettings) {
+            credsRef.current = {
+                user: serverSettings.authUsername,
+                pass: serverSettings.authPassword
+            };
+        } else {
+            credsRef.current = undefined;
+        }
+    }, [serverSettings]);
+
     useEffect(() => {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((m) => {
@@ -42,23 +60,26 @@ export const ChapterListInjector: React.FC = () => {
         if (container.querySelector('.ocr-chapter-btn-wrapper')) return;
 
         // --- CSS FIX START ---
-        // Force the container to behave as a flex row to align buttons horizontally
         container.style.display = 'flex';
         container.style.flexDirection = 'row';
         container.style.alignItems = 'center';
-        container.style.gap = '10px'; // Add nice spacing between buttons
+        container.style.gap = '10px';
         // --- CSS FIX END ---
 
         const wrapper = document.createElement('div');
         wrapper.className = 'ocr-chapter-btn-wrapper';
-        // Remove margin since we are using gap on the parent now
-        // wrapper.style.marginRight = '8px'; 
         
         container.insertBefore(wrapper, moreButton);
 
         const root = createRoot(wrapper);
         const urlPath = new URL(link.href).pathname;
-        root.render(<ChapterProcessButton chapterPath={urlPath} />);
+
+        root.render(
+            <ChapterProcessButton 
+                chapterPath={urlPath} 
+                creds={credsRef.current} 
+            />
+        );
     };
 
     return null;
