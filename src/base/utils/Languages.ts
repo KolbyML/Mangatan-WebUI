@@ -94,7 +94,7 @@ function defaultNativeLang(): readonly string[] {
 }
 
 export function getDefaultLanguages(): string[] {
-    return [...defaultNativeLang()];
+    return [...defaultNativeLang(), DefaultLanguage.ALL];
 }
 
 /**
