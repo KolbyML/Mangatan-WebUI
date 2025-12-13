@@ -23,8 +23,6 @@ body {
 html, body {
     margin: 0;
     padding: 0;
-    /* Only hide horizontal overflow to prevent overlay breakout */
-    overflow-x: hidden; 
 }
 
 /* 2. Reader Mode Lock: Only applied when viewing a chapter */
@@ -256,11 +254,4 @@ html.ocr-reader-mode body {
 .ocr-chapter-btn.loading {
     border: none;
     color: #888;
-}
-
-.right-side-actions {
-  display: flex;         
-  flex-direction: row; 
-  align-items: center;   
-  gap: 10px;            
 }
