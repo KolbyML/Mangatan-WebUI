@@ -1,6 +1,21 @@
 export type AuthCredentials = { user?: string; pass?: string };
 export type ChapterStatus = 'idle' | 'processed' | { status: 'processing', progress: number, total: number };
 
+// 1. Fixed Query: Changed $id type from ID! to Int!
+const MANGA_CHAPTERS_QUERY = `
+query MangaIdToChapterIDs($id: Int!) {
+  manga(id: $id) {
+    chapters {
+      nodes {
+        id
+        name
+        chapterNumber
+      }
+    }
+  }
+}
+`;
+
 const GRAPHQL_QUERY = `
 mutation GET_CHAPTER_PAGES_FETCH($input: FetchChapterPagesInput!) {
   fetchChapterPages(input: $input) {
@@ -12,6 +27,42 @@ mutation GET_CHAPTER_PAGES_FETCH($input: FetchChapterPagesInput!) {
   }
 }
 `;
+
+// 2. Helper to resolve MangaId + ChapterNum -> Internal Chapter ID
+const resolveChapterId = async (mangaId: number, chapterNumber: number): Promise<number> => {
+    const response = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            operationName: "MangaIdToChapterIDs",
+            variables: { id: mangaId },
+            query: MANGA_CHAPTERS_QUERY
+        })
+    });
+    const json = await response.json();
+    
+    // Safety check for errors in the response body
+    if (json.errors) {
+        console.error("GraphQL Errors:", json.errors);
+        throw new Error(`GraphQL Error: ${json.errors[0]?.message || 'Unknown error'}`);
+    }
+
+    const chapters = json.data?.manga?.chapters?.nodes;
+
+    if (!Array.isArray(chapters)) {
+        throw new Error("Failed to retrieve chapter list from GraphQL");
+    }
+
+    // Find the chapter node where the number matches
+    // Note: API might return number or string, so we cast to Number for comparison
+    const match = chapters.find((ch: any) => Number(ch.chapterNumber) === chapterNumber);
+
+    if (!match) {
+        throw new Error(`Chapter number ${chapterNumber} not found in manga ${mangaId}`);
+    }
+
+    return parseInt(match.id, 10);
+};
 
 export const fetchChapterPagesGraphQL = async (chapterId: number) => {
     const response = await fetch('/api/graphql', {
@@ -54,12 +105,24 @@ export const checkChapterStatus = async (baseUrl: string, creds?: AuthCredential
 };
 
 export const preprocessChapter = async (baseUrl: string, chapterPath: string, creds?: AuthCredentials): Promise<void> => {
-    const match = chapterPath.match(/\/chapter\/(\d+)/);
-    const chapterId = match ? parseInt(match[1], 10) : null;
-    
-    if (!chapterId) throw new Error("Could not parse chapter ID from path");
+    // 3. Updated logic to parse Manga ID and Chapter Number
+    // Expecting URL format like: .../manga/10/chapter/5
+    const mangaMatch = chapterPath.match(/\/manga\/(\d+)/);
+    const chapterMatch = chapterPath.match(/\/chapter\/([\d.]+)/); // Supports decimals (e.g. 10.5)
 
-    const pages = await fetchChapterPagesGraphQL(chapterId);
+    if (!mangaMatch || !chapterMatch) {
+        throw new Error("Could not parse Manga ID or Chapter Number from path");
+    }
+
+    const mangaId = parseInt(mangaMatch[1], 10);
+    const chapterNum = parseFloat(chapterMatch[1]); 
+
+    // Resolve the real internal ID
+    const internalChapterId = await resolveChapterId(mangaId, chapterNum);
+
+    // Call the original fetcher with the resolved ID
+    const pages = await fetchChapterPagesGraphQL(internalChapterId);
+    
     if (!pages || pages.length === 0) throw new Error("No pages found via GraphQL");
 
     const origin = window.location.origin;
@@ -72,7 +135,7 @@ export const preprocessChapter = async (baseUrl: string, chapterPath: string, cr
     const body: any = { 
         base_url: baseUrl, 
         context: document.title,
-        pages: absolutePages // Passing absolute URLs fixes the "relative URL without a base" error
+        pages: absolutePages 
     };
     if (creds?.user) body.user = creds.user;
     if (creds?.pass) body.pass = creds.pass;
@@ -121,4 +184,4 @@ export const cleanPunctuation = (text: string): string => {
         .replace(/([⁉⁈‼⁇])[!?:]+/g, '$1')
         .replace(/[!?:]+([⁉⁈‼⁇])/g, '$1');
     return t.replace(/\u0020/g, '');
-}
+};
