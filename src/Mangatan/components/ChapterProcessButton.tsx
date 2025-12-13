@@ -22,7 +22,7 @@ export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chap
             
             if (mounted) {
                 if (startingRef.current && res === 'idle') {
-                    if (!intervalId) intervalId = window.setInterval(check, 100); // Retry quickly
+                    if (!intervalId) intervalId = window.setInterval(check, 500); // Retry quickly
                     return;
                 }
 
@@ -46,7 +46,7 @@ export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chap
 
                 if (isProcessing || startingRef.current) {
                     if (!intervalId) {
-                        intervalId = window.setInterval(check, 100);
+                        intervalId = window.setInterval(check, 500);
                     }
                 } else {
                     if (intervalId) {
