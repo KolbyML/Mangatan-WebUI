@@ -7,7 +7,7 @@ interface ChapterProcessButtonProps {
 }
 
 export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chapterPath, creds }) => {
-    const [status, setStatus] = useState<ChapterStatus>('idle');
+    const [status, setStatus] = useState<ChapterStatus>({ status: 'idle', cached: 0, total: 0 });
     const apiBaseUrl = `${window.location.origin}/api/v1${chapterPath}/page/`;
     const startingRef = useRef(false);
 
@@ -16,33 +16,37 @@ export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chap
         let intervalId: number | null = null;
 
         const check = async () => {
-            if (status === 'processed') return;
+            if (status.status === 'processed') return;
 
             const res = await checkChapterStatus(apiBaseUrl, creds);
             
             if (mounted) {
-                if (startingRef.current && res === 'idle') {
-                    if (!intervalId) intervalId = window.setInterval(check, 500); // Retry quickly
+                if (startingRef.current && res.status === 'idle') {
+                    if (!intervalId) intervalId = window.setInterval(check, 500); 
                     return;
                 }
 
                 let hasChanged = false;
-                if (typeof res === 'object' && res.status === 'processing') {
-                    if (typeof status === 'object' && status.status === 'processing' &&
-                        status.progress === res.progress && status.total === res.total) {
-                        hasChanged = false;
-                    } else {
-                        hasChanged = true;
-                    }
+
+                if (status.status !== res.status) {
+                    hasChanged = true;
                 } else {
-                    hasChanged = (res !== status);
+                    if (status.status === 'processing' && res.status === 'processing') {
+                        if (status.progress !== res.progress || status.total !== res.total) {
+                            hasChanged = true;
+                        }
+                    } else if (status.status === 'idle' && res.status === 'idle') {
+                        if (status.cached !== res.cached || status.total !== res.total) {
+                            hasChanged = true;
+                        }
+                    }
                 }
 
                 if (hasChanged) {
                     setStatus(res);
                 }
                 
-                const isProcessing = (typeof res === 'object' && res.status === 'processing');
+                const isProcessing = (res.status === 'processing');
 
                 if (isProcessing || startingRef.current) {
                     if (!intervalId) {
@@ -69,7 +73,7 @@ export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chap
         e.preventDefault();
         e.stopPropagation();
         
-        if (status !== 'idle') return;
+        if (status.status !== 'idle') return;
 
         startingRef.current = true;
         setStatus({ status: 'processing', progress: 0, total: 0 }); 
@@ -77,7 +81,6 @@ export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chap
         try {
             await preprocessChapter(apiBaseUrl, chapterPath, creds);
             
-            // Keep the "starting" flag true for a buffer period to ignore initial 404s/idles
             setTimeout(() => {
                 startingRef.current = false;
             }, 2000);
@@ -85,25 +88,31 @@ export const ChapterProcessButton: React.FC<ChapterProcessButtonProps> = ({ chap
         } catch (err) {
             console.error(err);
             startingRef.current = false;
-            setStatus('idle');
+            setStatus({ status: 'idle', cached: 0, total: 0 });
         }
     };
 
     const renderButtonContent = () => {
-        if (status === 'processed') return "OCR Processed";
+        if (status.status === 'processed') return "OCR Processed";
         
-        if (typeof status === 'object' && status.status === 'processing') {
+        if (status.status === 'processing') {
             if (status.total > 0) {
                 return `Processing (${status.progress}/${status.total})`;
             }
             return "Processing...";
         }
 
+        if (status.status === 'idle') {
+            if (status.cached > 0) {
+                return `Process OCR (${status.cached}/${status.total})`;
+            }
+        }
+
         return "Process OCR";
     };
 
-    const isProcessing = (typeof status === 'object' && status.status === 'processing');
-    const isProcessed = status === 'processed';
+    const isProcessing = status.status === 'processing';
+    const isProcessed = status.status === 'processed';
 
     if (isProcessed) {
         return (

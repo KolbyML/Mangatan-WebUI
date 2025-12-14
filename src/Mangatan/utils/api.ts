@@ -1,7 +1,10 @@
 export type AuthCredentials = { user?: string; pass?: string };
-export type ChapterStatus = 'idle' | 'processed' | { status: 'processing', progress: number, total: number };
 
-// 1. Fixed Query: Changed $id type from ID! to Int!
+export type ChapterStatus = 
+    | { status: 'processed' }
+    | { status: 'processing', progress: number, total: number }
+    | { status: 'idle', cached: number, total: number };
+
 const MANGA_CHAPTERS_QUERY = `
 query MangaIdToChapterIDs($id: Int!) {
   manga(id: $id) {
@@ -28,7 +31,6 @@ mutation GET_CHAPTER_PAGES_FETCH($input: FetchChapterPagesInput!) {
 }
 `;
 
-// 2. Helper to resolve MangaId + ChapterNum -> Internal Chapter ID
 const resolveChapterId = async (mangaId: number, chapterNumber: number): Promise<number> => {
     const response = await fetch('/api/graphql', {
         method: 'POST',
@@ -41,7 +43,6 @@ const resolveChapterId = async (mangaId: number, chapterNumber: number): Promise
     });
     const json = await response.json();
     
-    // Safety check for errors in the response body
     if (json.errors) {
         console.error("GraphQL Errors:", json.errors);
         throw new Error(`GraphQL Error: ${json.errors[0]?.message || 'Unknown error'}`);
@@ -100,19 +101,25 @@ export const checkChapterStatus = async (baseUrl: string, creds?: AuthCredential
                 total: res.total || 0 
             };
         }
-        if (res.status === 'processed') return 'processed';
-        return 'idle';
+        
+        if (res.status === 'processed') {
+            return { status: 'processed' };
+        }
+        
+        return { 
+            status: 'idle', 
+            cached: res.cached_count || 0, 
+            total: res.total_expected || 0 
+        };
     } catch (e) {
         console.error("Failed to check chapter status", e);
-        return 'idle';
+        return { status: 'idle', cached: 0, total: 0 };
     }
 };
 
 export const preprocessChapter = async (baseUrl: string, chapterPath: string, creds?: AuthCredentials): Promise<void> => {
-    // 3. Updated logic to parse Manga ID and Chapter Number
-    // Expecting URL format like: .../manga/10/chapter/5
     const mangaMatch = chapterPath.match(/\/manga\/(\d+)/);
-    const chapterMatch = chapterPath.match(/\/chapter\/([\d.]+)/); // Supports decimals (e.g. 10.5)
+    const chapterMatch = chapterPath.match(/\/chapter\/([\d.]+)/);
 
     if (!mangaMatch || !chapterMatch) {
         throw new Error("Could not parse Manga ID or Chapter Number from path");
@@ -121,10 +128,7 @@ export const preprocessChapter = async (baseUrl: string, chapterPath: string, cr
     const mangaId = parseInt(mangaMatch[1], 10);
     const chapterNum = parseFloat(chapterMatch[1]); 
 
-    // Resolve the real internal ID
     const internalChapterId = await resolveChapterId(mangaId, chapterNum);
-
-    // Call the original fetcher with the resolved ID
     const pages = await fetchChapterPagesGraphQL(internalChapterId);
     
     if (!pages || pages.length === 0) throw new Error("No pages found via GraphQL");
@@ -135,7 +139,6 @@ export const preprocessChapter = async (baseUrl: string, chapterPath: string, cr
         return `${origin}${p}`;
     });
 
-    // 4. Send to OCR Server
     const body: any = { 
         base_url: baseUrl, 
         context: document.title,
