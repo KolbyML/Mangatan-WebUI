@@ -58,18 +58,18 @@ export const TextBox: React.FC<{
     }, [block, containerRect, settings, isEditing, isVertical]);
 
     // --- HELPER: Find Scroll Container from Image ---
-    // This is the most robust method: Find the image this box belongs to, 
-    // and find WHO is holding that image.
     const findScrollContainerFromImage = (src: string): HTMLElement | null => {
-        // Find the image element in the DOM
         const img = document.querySelector(`img[src="${src}"]`);
         if (!img) return null;
 
         let parent = img.parentElement;
         while (parent && parent !== document.body) {
             const style = window.getComputedStyle(parent);
-            // Check for explicit scroll settings
-            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
+            
+            const canScrollY = (style.overflowY === 'auto' || style.overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight;
+            const canScrollX = (style.overflowX === 'auto' || style.overflowX === 'scroll') && parent.scrollWidth > parent.clientWidth;
+
+            if (canScrollY || canScrollX) {
                 return parent;
             }
             parent = parent.parentElement;
@@ -81,15 +81,45 @@ export const TextBox: React.FC<{
     const handleWheel = (e: React.WheelEvent) => {
         if (isEditing) return;
 
+        // Helper to apply logic to a found element
+        const attemptScroll = (el: HTMLElement) => {
+            const style = window.getComputedStyle(el);
+            const canScrollY = (style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+            const canScrollX = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+
+            // PRIORITY 1: Strictly Horizontal
+            if (canScrollX && !canScrollY) {
+                el.scrollLeft += e.deltaY;
+                return true;
+            }
+
+            // PRIORITY 2: Both directions available (e.g. Zoomed in or Continuous Horizontal with tall images)
+            // Heuristic: If the scrollable width is significantly larger than scrollable height, 
+            // it is likely a horizontal strip (Continuous Horizontal Mode).
+            if (canScrollX && canScrollY) {
+                if (el.scrollWidth > el.scrollHeight) {
+                    el.scrollLeft += e.deltaY;
+                    return true;
+                }
+            }
+            
+            // PRIORITY 3: Default Vertical
+            if (canScrollY) {
+                el.scrollTop += e.deltaY;
+                return true;
+            }
+            
+            return false;
+        };
+
         // 1. Try to find the container based on the source image (Highest Accuracy)
         const containerFromImg = findScrollContainerFromImage(imgSrc);
         if (containerFromImg) {
-            containerFromImg.scrollTop += e.deltaY;
+            attemptScroll(containerFromImg);
             return;
         }
 
         // 2. Fallback: Bubbling search from cursor position
-        // Useful if the image selector fails for some reason
         if (ref.current) {
             ref.current.style.pointerEvents = 'none';
             const elementUnder = document.elementFromPoint(e.clientX, e.clientY);
@@ -98,19 +128,10 @@ export const TextBox: React.FC<{
             let target = elementUnder;
             while (target && target !== document.body && target !== document.documentElement) {
                 const el = target as HTMLElement;
-                const style = window.getComputedStyle(el);
-                
-                if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
-                    el.scrollTop += e.deltaY;
-                    return;
-                }
+                if (attemptScroll(el)) return;
                 target = target.parentElement;
             }
         }
-        
-        // 3. NO WINDOW SCROLL FALLBACK
-        // We explicitly do NOT call window.scrollBy here. 
-        // This prevents the "scroll off page" glitch.
     };
 
     const handleInteract = (e: React.MouseEvent) => {
