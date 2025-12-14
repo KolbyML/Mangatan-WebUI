@@ -34,7 +34,14 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
     const resetToDefaults = () => {
         // eslint-disable-next-line no-restricted-globals, no-alert
-        if (window.confirm('Reset all settings to default?')) setLocalSettings(DEFAULT_SETTINGS);
+        if (window.confirm('Reset all settings to default?2')) {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            setLocalSettings({
+                ...DEFAULT_SETTINGS,
+                mobileMode: isMobile
+            });
+        }
     };
 
     const purgeCache = async () => {

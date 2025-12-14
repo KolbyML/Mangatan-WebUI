@@ -29,7 +29,17 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
 
     const [settings, setSettings] = useState<Settings>(() => {
         const saved = localStorage.getItem('mangatan_settings_v3');
-        return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+        
+        if (saved) {
+            return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+        }
+
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        return { 
+            ...DEFAULT_SETTINGS, 
+            mobileMode: isMobile 
+        };
     });
 
     const [ocrCache, setOcrCache] = useState<Map<string, OcrBlock[]>>(new Map());
