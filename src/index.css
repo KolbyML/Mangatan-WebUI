@@ -152,6 +152,13 @@ html.ocr-reader-mode body {
 .ocr-modal-footer button.warning { background-color: #e67e22; border-color: #d35400; }
 .mobile-mode .gemini-ocr-text-box { transition: none !important; animation: none !important; }
 
+/* --- HIDE OCR OVERLAY WHEN SUWAYOMI READING OPTIONS ARE OPEN --- */
+body:has(.MuiDialog-root) .ocr-overlay-container,
+    body:has(.MuiDialogContent-root) .ocr-overlay-container {
+    display: none !important;
+    pointer-events: none !important;
+}
+
 /* --- STATUS ICON --- */
 .ocr-status-icon-container {
     position: absolute;
