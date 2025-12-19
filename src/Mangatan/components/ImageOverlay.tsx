@@ -7,7 +7,6 @@ import { TextBox } from '@/Mangatan/components/TextBox';
 import { StatusIcon } from '@/Mangatan/components/StatusIcon';
 
 export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
-    // Destructure serverSettings from the context
     const { settings, serverSettings, ocrCache, updateOcrData, setActiveImageSrc, mergeAnchor, ocrStatusMap, setOcrStatus } = useOCR();
     const [data, setData] = useState<OcrBlock[] | null>(null);
 
@@ -15,11 +14,13 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
     const [rect, setRect] = useState<DOMRect | null>(null);
     const [pageOffset, setPageOffset] = useState({ top: 0, left: 0 });
     const [isVisible, setIsVisible] = useState(false);
-    
+
     const containerRef = useRef<HTMLDivElement>(null);
     const hideTimerRef = useRef<number | null>(null);
     const isHoveringRef = useRef(false);
 
+    // BACKGROUND FETCH LOGIC
+    // This allows buffered pages to download their data while still hidden
     const fetchOCR = useCallback(async () => {
         if (!img.src || ocrCache.has(img.src)) return;
 
@@ -29,7 +30,6 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
             
             let url = `/api/ocr/ocr?url=${encodeURIComponent(img.src)}`;
 
-            // USE LIVE GLOBAL SETTINGS
             if (serverSettings?.authUsername?.trim() && serverSettings?.authPassword?.trim()) {
                 url += `&user=${encodeURIComponent(serverSettings.authUsername.trim())}`;
                 url += `&pass=${encodeURIComponent(serverSettings.authPassword.trim())}`;
@@ -41,32 +41,31 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
                 updateOcrData(img.src, result);
                 setData(result);
             } else {
-                 throw new Error("Invalid response format");
+                throw new Error("Invalid response format");
             }
         } catch (err) {
             // eslint-disable-next-line no-console
             console.error("OCR Failed:", err);
             setOcrStatus(img.src, 'error');
         }
-    }, [img.src, ocrCache, setOcrStatus, updateOcrData, serverSettings]); // Dependency ensures update on auth change
+    }, [img.src, ocrCache, setOcrStatus, updateOcrData, serverSettings]);
 
     useEffect(() => {
         if (!img.src) return;
         if (ocrCache.has(img.src)) {
             setData(ocrCache.get(img.src)!);
             if (ocrStatusMap.get(img.src) !== 'success') {
-                 setOcrStatus(img.src, 'success');
+                setOcrStatus(img.src, 'success');
             }
             return;
         }
-
         if (currentStatus === 'loading' || currentStatus === 'error') return;
 
         if (img.complete) fetchOCR();
         else img.onload = fetchOCR;
     }, [fetchOCR, img.complete, ocrCache, img.src, currentStatus, setOcrStatus, ocrStatusMap]);
 
-    // ... (Standard positioning and hover logic) ...
+    // POSITIONING LOGIC
     useEffect(() => {
         const updateRect = () => {
             const r = img.getBoundingClientRect();
@@ -75,11 +74,14 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
                 setPageOffset({ top: window.scrollY + r.top, left: window.scrollX + r.left });
             }
         };
+
         updateRect();
         const observer = new ResizeObserver(updateRect);
         observer.observe(img);
+
         window.addEventListener('resize', updateRect);
         window.addEventListener('scroll', updateRect, { capture: true });
+
         return () => {
             observer.disconnect();
             window.removeEventListener('resize', updateRect);
@@ -87,6 +89,7 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
         };
     }, [img]);
 
+    // HOVER LOGIC
     useEffect(() => {
         const clearHideTimer = () => {
             if (hideTimerRef.current) {
@@ -105,10 +108,8 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
         const hide = () => {
             clearHideTimer();
             hideTimerRef.current = window.setTimeout(() => {
-                if (!mergeAnchor && !isHoveringRef.current) {
-                    setIsVisible(false);
-                }
-            }, 400); 
+                if (!mergeAnchor && !isHoveringRef.current) setIsVisible(false);
+            }, 400);
         };
 
         const onImgEnter = () => {
@@ -182,7 +183,17 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
     };
 
     if (!rect) return null;
-    const shouldShowOverlay = data || currentStatus === 'loading' || currentStatus === 'error';
+
+    // RENDERING GATES (Visibility Logic)
+    const isImgDisplayed = img.offsetParent !== null; // Hidden via display:none (buffered pages)
+    const isImgInViewport = rect.top < window.innerHeight && rect.bottom > 0; // Off-screen
+
+    // Only render the Portal if the image is actually visible on screen.
+    // This stops "ghosting" while allowing the background fetch to stay active.
+    const shouldShowOverlay = (data || currentStatus === 'loading' || currentStatus === 'error')
+        && isImgDisplayed
+        && isImgInViewport;
+
     if (!shouldShowOverlay) return null;
 
     const onOverlayEnter = () => {
@@ -226,7 +237,7 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
         >
             <StatusIcon status={currentStatus} onRetry={fetchOCR} />
             {settings.enableOverlay && (isVisible || settings.interactionMode === 'click' || settings.mobileMode || settings.debugMode) &&
-            data?.map((block, i) => (
+                data?.map((block, i) => (
                     <TextBox
                         // eslint-disable-next-line react/no-array-index-key
                         key={`${i}-${block.text.substring(0, 5)}`}
