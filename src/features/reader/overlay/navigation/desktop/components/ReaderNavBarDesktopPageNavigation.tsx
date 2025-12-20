@@ -32,6 +32,11 @@ const BaseReaderNavBarDesktopPageNavigation = () => {
     const currentPage = useMemo(() => getPage(currentPageIndex, pages), [currentPageIndex, pages]);
     const direction = READING_DIRECTION_TO_THEME_DIRECTION[readingDirection];
 
+    // Helper to generate the Label with Ghost Text
+    const pageLabelGhost = (
+        <span className="yomitan-ghost-text" data-text={t('reader.page_info.label.page')} />
+    );
+
     return (
         <Stack sx={{ flexDirection: 'row', gap: 1 }} dir="ltr">
             <ReaderNavBarDesktopNextPreviousButton
@@ -45,16 +50,22 @@ const BaseReaderNavBarDesktopPageNavigation = () => {
                 onClick={() => ReaderControls.openPage('previous', undefined, false)}
             />
             <FormControl sx={{ flexBasis: '70%', flexGrow: 0, flexShrink: 0 }}>
-                <InputLabel id="reader-nav-bar-desktop-page-select">{t('reader.page_info.label.page')}</InputLabel>
+                {/* Fix 1: InputLabel text */}
+                <InputLabel id="reader-nav-bar-desktop-page-select">
+                    {pageLabelGhost}
+                </InputLabel>
+                
                 <Select
                     labelId="reader-nav-bar-desktop-page-select"
-                    label={t('reader.page_info.label.page')}
+                    // Fix 2: Select 'label' prop (used for the outline cutout)
+                    label={pageLabelGhost}
                     value={getNextIndexFromPage(currentPage)}
                     onChange={(e) => ReaderControls.openPage(e.target.value as number, undefined, false)}
                 >
                     {pages.map((page) => (
                         <MenuItem key={getNextIndexFromPage(page)} value={getNextIndexFromPage(page)}>
-                            {page.name}
+                            {/* Fix 3: The actual page numbers in the dropdown (and selected value) */}
+                            <span className="yomitan-ghost-text" data-text={page.name} />
                         </MenuItem>
                     ))}
                 </Select>
