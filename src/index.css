@@ -262,3 +262,20 @@ body:has(.MuiDialog-root) .ocr-overlay-container,
     border: none;
     color: #888;
 }
+
+/* --- GHOST TEXT: Visible to user, Invisible to Yomitan --- */
+.yomitan-ghost-text {
+    /* Make sure the element has layout size even without text children */
+    min-width: 1ch; 
+    display: inline-block;
+    
+    /* Standard protections */
+    user-select: none !important;
+    pointer-events: none !important;
+}
+
+/* This puts the text back visually using the data attribute */
+.yomitan-ghost-text::after {
+    content: attr(data-text);
+    visibility: visible;
+}
