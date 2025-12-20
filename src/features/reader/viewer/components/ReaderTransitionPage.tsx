@@ -61,14 +61,28 @@ const ChapterInfo = ({
 
     return (
         <Stack>
-            <Typography color={contrastText}>{title}</Typography>
-            <Typography color={contrastText} variant="h6" component="h1">
-                {name}
-            </Typography>
+            {/* Fix: Ghost Text for Title (Current/Next/Finished) */}
+            <Typography 
+                color={contrastText} 
+                className="yomitan-ghost-text"
+                data-text={title}
+            />
+            {/* Fix: Ghost Text for Chapter Name */}
+            <Typography 
+                color={contrastText} 
+                variant="h6" 
+                component="h1"
+                className="yomitan-ghost-text"
+                data-text={name}
+            />
             {scanlator && (
-                <Typography variant="body2" color={disabledText}>
-                    {scanlator}
-                </Typography>
+                /* Fix: Ghost Text for Scanlator */
+                <Typography 
+                    variant="body2" 
+                    color={disabledText}
+                    className="yomitan-ghost-text"
+                    data-text={scanlator}
+                />
             )}
         </Stack>
     );
@@ -162,7 +176,12 @@ const BaseReaderTransitionPage = ({
                 }}
             >
                 {isPreviousType && isFirstChapter && (
-                    <Typography variant="h6">{t('reader.transition_page.first_chapter')}</Typography>
+                    /* Fix: Ghost Text for "There is no previous chapter" */
+                    <Typography 
+                        variant="h6"
+                        className="yomitan-ghost-text"
+                        data-text={t('reader.transition_page.first_chapter')}
+                    />
                 )}
                 <Stack sx={{ gap: 5 }}>
                     {isPreviousType && !isFirstChapter && (
@@ -193,7 +212,12 @@ const BaseReaderTransitionPage = ({
                     )}
                 </Stack>
                 {isNextType && isLastChapter && (
-                    <Typography variant="h6">{t('reader.transition_page.last_chapter')}</Typography>
+                    /* Fix: Ghost Text for "Last chapter" message */
+                    <Typography 
+                        variant="h6"
+                        className="yomitan-ghost-text"
+                        data-text={t('reader.transition_page.last_chapter')}
+                    />
                 )}
                 {((isPreviousType && isFirstChapter) || (isNextType && isLastChapter)) && (
                     <Stack sx={{ flexDirection: 'row', flexWrap: 'wrap', gap: 1 }}>
@@ -205,7 +229,11 @@ const BaseReaderTransitionPage = ({
                             }}
                             variant="contained"
                         >
-                            {t('reader.transition_page.exit.previous_page')}
+                            {/* Fix: Ghost Text inside Button (use span) */}
+                            <span 
+                                className="yomitan-ghost-text" 
+                                data-text={t('reader.transition_page.exit.previous_page')} 
+                            />
                         </Button>
                         <Button
                             sx={{ flexGrow: 1 }}
@@ -216,7 +244,11 @@ const BaseReaderTransitionPage = ({
                             variant="contained"
                             to={AppRoutes.manga.path(manga?.id ?? -1)}
                         >
-                            {t('reader.transition_page.exit.manga_page')}
+                            {/* Fix: Ghost Text inside Button (use span) */}
+                            <span 
+                                className="yomitan-ghost-text" 
+                                data-text={t('reader.transition_page.exit.manga_page')} 
+                            />
                         </Button>
                     </Stack>
                 )}
