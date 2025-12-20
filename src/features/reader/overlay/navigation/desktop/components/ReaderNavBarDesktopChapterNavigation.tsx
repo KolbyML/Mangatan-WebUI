@@ -49,6 +49,17 @@ const BaseReaderNavBarDesktopChapterNavigation = ({
         popupState.close();
     }, [currentChapterId]);
 
+    // Prepare Ghost Text for the "Chapter" Label
+    const chapterLabelText = t('chapter.title_one');
+    const chapterLabelGhost = (
+        <span className="yomitan-ghost-text" data-text={chapterLabelText} />
+    );
+
+    // Prepare Ghost Text for the Current Chapter Value (#1 Chapter Name)
+    const currentChapterText = currentChapterNumber !== undefined 
+        ? `#${currentChapterNumber} ${currentChapterName}` 
+        : '';
+
     return (
         <Stack sx={{ flexDirection: 'row', gap: 1 }} dir="ltr">
             <ReaderNavBarDesktopNextPreviousButton
@@ -66,19 +77,25 @@ const BaseReaderNavBarDesktopChapterNavigation = ({
                 disabled={getOptionForDirection(!previousChapter, !nextChapter, readerThemeDirection)}
             />
             <FormControl sx={{ flexBasis: '70%', flexGrow: 0, flexShrink: 0 }}>
-                <InputLabel id="reader-nav-bar-desktop-chapter-select">{t('chapter.title_one')}</InputLabel>
+                {/* Fix 1: Apply ghost text to InputLabel */}
+                <InputLabel id="reader-nav-bar-desktop-chapter-select">
+                    {chapterLabelGhost}
+                </InputLabel>
+                
                 <Select
                     {...bindTrigger(popupState)}
                     open={popupState.isOpen}
                     value={currentChapterId ?? 0}
                     // hide actual select menu
                     MenuProps={{ sx: { visibility: 'hidden' } }}
-                    label={t('chapter.title_one')}
+                    // Fix 2: Apply ghost text to Select 'label' prop (for the outline cutout)
+                    label={chapterLabelGhost}
                     labelId="reader-nav-bar-desktop-chapter-select"
                 >
                     {/* hacky way to use the select component with a custom menu, the only possible value that is needed is the current chapter */}
                     <MenuItem key={currentChapterId} value={currentChapterId ?? 0}>
-                        {currentChapterNumber !== undefined ? `#${currentChapterNumber} ${currentChapterName}` : ''}
+                        {/* Fix 3: Apply ghost text to the current selected chapter name */}
+                        <span className="yomitan-ghost-text" data-text={currentChapterText} />
                     </MenuItem>
                 </Select>
             </FormControl>
