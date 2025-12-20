@@ -26,8 +26,6 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
 
         try {
             setOcrStatus(img.src, 'loading');
-            console.log(`Fetching OCR for: ${img.src}`);
-            
             let url = `/api/ocr/ocr?url=${encodeURIComponent(img.src)}`;
 
             if (serverSettings?.authUsername?.trim() && serverSettings?.authPassword?.trim()) {
