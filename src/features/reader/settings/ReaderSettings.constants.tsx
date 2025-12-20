@@ -157,6 +157,8 @@ const GLOBAL_READER_SETTING_OBJECT: Record<keyof IReaderSettingsGlobal, undefine
 
 export const GLOBAL_READER_SETTING_KEYS = Object.keys(GLOBAL_READER_SETTING_OBJECT);
 
+const IS_MOBILE = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 export const DEFAULT_READER_SETTINGS: IReaderSettings = {
     readerWidth: { value: 50, enabled: false },
     overlayMode: ReaderOverlayMode.AUTO,
@@ -166,7 +168,7 @@ export const DEFAULT_READER_SETTINGS: IReaderSettings = {
     progressBarSize: PROGRESS_BAR_SIZE.default,
     progressBarPosition: ProgressBarPosition.AUTO,
     progressBarPositionAutoVertical: ProgressBarPosition.RIGHT,
-    pageScaleMode: ReaderPageScaleMode.ORIGINAL,
+    pageScaleMode: IS_MOBILE ? ReaderPageScaleMode.SCREEN : ReaderPageScaleMode.ORIGINAL,
     shouldStretchPage: false,
     shouldOffsetDoubleSpreads: false,
     shouldSkipDupChapters: true,
@@ -174,7 +176,7 @@ export const DEFAULT_READER_SETTINGS: IReaderSettings = {
     shouldShowPageNumber: true,
     isStaticNav: false,
     readingDirection: ReadingDirection.LTR,
-    readingMode: ReadingMode.SINGLE_PAGE,
+    readingMode: IS_MOBILE ? ReadingMode.CONTINUOUS_VERTICAL : ReadingMode.SINGLE_PAGE,
     exitMode: ReaderExitMode.PREVIOUS,
     backgroundColor: ReaderBackgroundColor.THEME,
     customFilter: {
