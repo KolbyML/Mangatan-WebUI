@@ -48,7 +48,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
     const purgeCache = async () => {
         // eslint-disable-next-line no-restricted-globals, no-alert
-        if (!window.confirm('Purge Server Cache?')) return;
+        if (!window.confirm('Purge Server OCR Cache?')) return;
         try {
             await apiRequest(`/api/ocr/purge-cache`, { method: 'POST' });
             // eslint-disable-next-line no-alert
@@ -56,6 +56,24 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         } catch (e) {
             // eslint-disable-next-line no-alert
             window.alert('Failed');
+        }
+    };
+
+    const resetYomitanDB = async () => {
+        // eslint-disable-next-line no-restricted-globals, no-alert
+        if (!window.confirm('Are you sure you want to RESET the dictionary database?\n\nThis will DELETE all custom dictionaries and restore the default JMdict.\nThis action cannot be undone.')) return;
+        
+        try {
+            const res = await apiRequest<{status: string, message: string}>(`/api/yomitan/reset`, { method: 'POST' });
+            if (res.status === 'ok') {
+                // eslint-disable-next-line no-alert
+                window.alert('Dictionary database reset successfully.\nThe default dictionary is being imported in the background.');
+            } else {
+                 throw new Error(res.message || 'Unknown Error');
+            }
+        } catch (e: any) {
+            // eslint-disable-next-line no-alert
+            window.alert('Failed to reset DB: ' + e.message);
         }
     };
 
@@ -198,7 +216,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     </div>
 
                     <div className="checkboxes">
-                        {/* Enable Overlay */}
                         <label style={checkboxLabelStyle}>
                             <input
                                 type="checkbox"
@@ -219,7 +236,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             Enable builtin Popup Dictionary (Yomitan clone)
                         </label>
 
-                        {/* Solo Hover */}
                         <label style={checkboxLabelStyle}>
                             <input
                                 type="checkbox"
@@ -230,7 +246,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             Solo Hover (Hide others when hovering one)
                         </label>
 
-                        {/* Add Space on Merge */}
                         <label style={checkboxLabelStyle}>
                             <input
                                 type="checkbox"
@@ -241,7 +256,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             Add Space on Merge
                         </label>
 
-                        {/* Mobile Mode */}
                         <label style={checkboxLabelStyle}>
                             <input
                                 type="checkbox"
@@ -252,7 +266,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             Mobile Mode (No Animation)
                         </label>
 
-                        {/* Debug Mode */}
                         <label style={checkboxLabelStyle}>
                             <input
                                 type="checkbox"
@@ -273,10 +286,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         </label>
                     </div>
                     <h3>Site Config</h3>
-                    {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                    <label htmlFor="siteConfig" style={{ display: 'none' }}>
-                        Site Config
-                    </label>
                     <textarea
                         id="siteConfig"
                         rows={5}
@@ -303,7 +312,10 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 </div>
                 <div className="ocr-modal-footer">
                     <button type="button" className="danger" onClick={purgeCache}>
-                        Purge Cache
+                        Purge OCR Cache
+                    </button>
+                    <button type="button" className="danger" onClick={resetYomitanDB} style={{ background: '#c0392b', borderColor: '#e74c3c' }}>
+                        Reset Dictionary DB
                     </button>
                     <button
                         type="button"
@@ -311,7 +323,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         onClick={resetToDefaults}
                         style={{ marginRight: 'auto', background: '#e67e22', borderColor: '#d35400' }}
                     >
-                        Reset Defaults
+                        Reset Settings
                     </button>
                     <button type="button" onClick={onClose}>
                         Cancel
