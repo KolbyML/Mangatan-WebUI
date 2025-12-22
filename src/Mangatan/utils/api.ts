@@ -7,6 +7,13 @@ export type ChapterStatus =
     | { status: 'processing', progress: number, total: number }
     | { status: 'idle', cached: number, total: number };
 
+export interface DictionaryMeta {
+    id: number;
+    name: string;
+    priority: number;
+    enabled: boolean;
+}
+
 const MANGA_CHAPTERS_QUERY = `
 query MangaIdToChapterIDs($id: Int!) {
   manga(id: $id) {
@@ -109,29 +116,44 @@ export const apiRequest = async <T>(
     }
 };
 
-// --- YOMITAN LOOKUP (FIXED) ---
+// --- YOMITAN API ---
+
 export const lookupYomitan = async (text: string, index: number = 0): Promise<DictionaryResult[] | 'loading'> => {
     try {
         const url = `/api/yomitan/lookup?text=${encodeURIComponent(text)}&index=${index}`;
-        console.log(`[Yomitan] Fetching: ${url}`); 
-        
         const res = await apiRequest<any>(url);
         
-        if (res && res.error === 'loading') {
-            return 'loading';
-        }
-
-        if (Array.isArray(res)) {
-            // FIX: Return the array directly. 
-            // The previous code was mapping 'entry.term', which didn't exist in your JSON.
-            return res as DictionaryResult[];
-        }
+        if (res && res.error === 'loading') return 'loading';
+        if (Array.isArray(res)) return res as DictionaryResult[];
         
         return [];
     } catch (e) {
         console.error("Lookup failed:", e);
         return [];
     }
+};
+
+export const getDictionaries = async (): Promise<DictionaryMeta[]> => {
+    try {
+        const res = await apiRequest<{ dictionaries: any[], status: string }>('/api/yomitan/dictionaries');
+        // Backend returns "dictionaries" array with {id: [number], name, priority, enabled}
+        return res.dictionaries.map(d => ({
+            id: d.id, // Rust DictionaryId is a tuple struct or plain integer based on serialization
+            name: d.name,
+            priority: d.priority,
+            enabled: d.enabled
+        }));
+    } catch (e) {
+        console.error("Failed to fetch dictionaries", e);
+        return [];
+    }
+};
+
+export const manageDictionary = async (action: 'Toggle' | 'Delete' | 'Reorder', payload: any) => {
+    return apiRequest<{status: string}>('/api/yomitan/manage', {
+        method: 'POST',
+        body: { action, payload }
+    });
 };
 
 export const checkChapterStatus = async (baseUrl: string, creds?: AuthCredentials): Promise<ChapterStatus> => {

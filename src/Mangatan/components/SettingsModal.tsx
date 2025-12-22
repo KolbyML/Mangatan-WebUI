@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useOCR } from '@/Mangatan/context/OCRContext';
 import { COLOR_THEMES, DEFAULT_SETTINGS } from '@/Mangatan/types';
 import { apiRequest } from '@/Mangatan/utils/api';
+import { DictionaryManager } from './DictionaryManager';
 
 const checkboxLabelStyle: React.CSSProperties = {
     display: 'flex',
@@ -21,12 +22,19 @@ const checkboxInputStyle: React.CSSProperties = {
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { settings, setSettings } = useOCR();
     const [localSettings, setLocalSettings] = useState(settings);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [dictManagerKey, setDictManagerKey] = useState(0);
 
     const handleChange = (key: keyof typeof settings, value: any) => {
         setLocalSettings((prev) => ({ ...prev, [key]: value }));
     };
 
     const save = () => {
+        // FIX: Manually save to localStorage before reloading.
+        // Previously, the reload happened before the OCRContext useEffect could trigger, 
+        // causing changes to be lost (race condition).
+        localStorage.setItem('mangatan_settings_v3', JSON.stringify(localSettings));
+        
         setSettings(localSettings);
         onClose();
         window.location.reload();
@@ -41,7 +49,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             setLocalSettings({
                 ...DEFAULT_SETTINGS,
                 mobileMode: isMobile,
-                enableYomitan: isiOS
+                enableYomitan: isiOS // Reverted to logic: OFF on PC, ON on iOS
             });
         }
     };
@@ -62,18 +70,53 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const resetYomitanDB = async () => {
         // eslint-disable-next-line no-restricted-globals, no-alert
         if (!window.confirm('Are you sure you want to RESET the dictionary database?\n\nThis will DELETE all custom dictionaries and restore the default JMdict.\nThis action cannot be undone.')) return;
-        
         try {
             const res = await apiRequest<{status: string, message: string}>(`/api/yomitan/reset`, { method: 'POST' });
             if (res.status === 'ok') {
                 // eslint-disable-next-line no-alert
                 window.alert('Dictionary database reset successfully.\nThe default dictionary is being imported in the background.');
+                setDictManagerKey(prev => prev + 1);
             } else {
                  throw new Error(res.message || 'Unknown Error');
             }
         } catch (e: any) {
             // eslint-disable-next-line no-alert
             window.alert('Failed to reset DB: ' + e.message);
+        }
+    };
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // eslint-disable-next-line no-alert
+                window.alert('Importing... This may take a moment.');
+                const res = await fetch('/api/yomitan/import', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const json = await res.json();
+                if (json.status === 'ok') {
+                     // eslint-disable-next-line no-alert
+                    window.alert('Import Successful: ' + json.message);
+                    setDictManagerKey(prev => prev + 1);
+                } else {
+                     // eslint-disable-next-line no-alert
+                    window.alert('Import Failed: ' + json.message);
+                }
+            } catch (err) {
+                 // eslint-disable-next-line no-alert
+                window.alert('Import Failed: ' + err);
+            }
+            
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
@@ -84,6 +127,22 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     <h2>Settings</h2>
                 </div>
                 <div className="ocr-modal-content">
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        style={{ display: 'none' }} 
+                        accept=".zip" 
+                        onChange={handleFileChange} 
+                    />
+
+                    {/* Dictionary Manager Section */}
+                    {localSettings.enableYomitan && (
+                        <DictionaryManager 
+                            key={dictManagerKey} 
+                            onImportClick={handleImportClick} 
+                        />
+                    )}
+
                     <h3>Visuals</h3>
                     <div className="grid">
                         {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
@@ -223,7 +282,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={(e) => handleChange('enableOverlay', e.target.checked)}
                                 style={checkboxInputStyle}
                             />
-                            Enable Text Overlay (If disabled, no OCR text will show)
+                            Enable Text Overlay
                         </label>
 
                         <label style={checkboxLabelStyle}>
@@ -233,7 +292,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={e => handleChange('enableYomitan', e.target.checked)}
                                 style={checkboxInputStyle}
                             />
-                            Enable builtin Popup Dictionary (Yomitan clone)
+                            Enable Popup Dictionary
                         </label>
 
                         <label style={checkboxLabelStyle}>
@@ -243,7 +302,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={(e) => handleChange('soloHoverMode', e.target.checked)}
                                 style={checkboxInputStyle}
                             />
-                            Solo Hover (Hide others when hovering one)
+                            Solo Hover
                         </label>
 
                         <label style={checkboxLabelStyle}>
@@ -263,7 +322,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={(e) => handleChange('mobileMode', e.target.checked)}
                                 style={checkboxInputStyle}
                             />
-                            Mobile Mode (No Animation)
+                            Mobile Mode
                         </label>
 
                         <label style={checkboxLabelStyle}>
@@ -282,37 +341,13 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={(e) => handleChange('disableStatusIcon', e.target.checked)}
                                 style={checkboxInputStyle}
                             />
-                            Disable Status Icon (Hide loading/error spinner for OCR status)
+                            Disable Status Icon
                         </label>
                     </div>
-                    <h3>Site Config</h3>
-                    <textarea
-                        id="siteConfig"
-                        rows={5}
-                        value={[
-                                    localSettings.site.overflowFixSelector,
-                                    ...localSettings.site.imageContainerSelectors,
-                                    localSettings.site.contentRootSelector,
-                                ].join('; ')}
-                        onChange={(e) => {
-                            const sites = e.target.value
-                                .split('\n')
-                                .filter((l) => l.trim())
-                                .map((l) => {
-                                    const p = l.split(';').map((s) => s.trim());
-                                    return {
-                                        overflowFixSelector: p[0],
-                                        imageContainerSelectors: p.slice(1, -1),
-                                        contentRootSelector: p[p.length - 1],
-                                    };
-                                });
-                            handleChange('site', sites[0]);
-                        }}
-                    />
                 </div>
                 <div className="ocr-modal-footer">
                     <button type="button" className="danger" onClick={purgeCache}>
-                        Purge OCR Cache
+                        Purge Cache
                     </button>
                     <button type="button" className="danger" onClick={resetYomitanDB} style={{ background: '#c0392b', borderColor: '#e74c3c' }}>
                         Reset Dictionary DB
@@ -323,7 +358,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         onClick={resetToDefaults}
                         style={{ marginRight: 'auto', background: '#e67e22', borderColor: '#d35400' }}
                     >
-                        Reset Settings
+                        Reset Defaults
                     </button>
                     <button type="button" onClick={onClose}>
                         Cancel
