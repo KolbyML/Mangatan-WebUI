@@ -44,7 +44,8 @@ export const ReaderNavBarDesktopAutoScroll = ({
                 variant="contained"
                 startIcon={isActive ? <PauseCircleFilledIcon /> : <PlayCircleFilledIcon />}
             >
-                {t('reader.settings.auto_scroll.title')}
+                {/* FIX 1: Auto Scroll Button Title */}
+                <span className="yomitan-ghost-text" data-text={t('reader.settings.auto_scroll.title')} />
             </Button>
             <TextField
                 value={autoScroll.value}
@@ -73,7 +74,11 @@ export const ReaderNavBarDesktopAutoScroll = ({
                         inputProps: AUTO_SCROLL_SPEED,
                         endAdornment: (
                             <InputAdornment position="end">
-                                {t('global.time.seconds.second', { count: autoScroll.value })}
+                                {/* FIX 2: "Seconds" Label */}
+                                <span 
+                                    className="yomitan-ghost-text" 
+                                    data-text={t('global.time.seconds.second', { count: autoScroll.value })} 
+                                />
                             </InputAdornment>
                         ),
                     },

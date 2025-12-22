@@ -35,13 +35,15 @@ export const ReaderNavBarDesktopMetadata = memo(
                         to={AppRoutes.manga.path(mangaId)}
                         sx={{ textDecoration: 'none', color: 'inherit' }}
                     >
-                        {mangaTitle}
+                        {/* FIX 1: Manga Title */}
+                        <span className="yomitan-ghost-text" data-text={mangaTitle} />
                     </Link>
                 </TypographyMaxLines>
             </CustomTooltip>
             <CustomTooltip title={chapterTitle} placement="right">
                 <TypographyMaxLines lines={4} variant="body1" component="h2" sx={{ textAlign: 'center' }}>
-                    {chapterTitle}
+                    {/* FIX 2: Chapter Title */}
+                    <span className="yomitan-ghost-text" data-text={chapterTitle} />
                 </TypographyMaxLines>
             </CustomTooltip>
             {scanlator && (
@@ -53,7 +55,8 @@ export const ReaderNavBarDesktopMetadata = memo(
                         color="textDisabled"
                         sx={{ textAlign: 'center' }}
                     >
-                        {scanlator}
+                        {/* FIX 3: Scanlator */}
+                        <span className="yomitan-ghost-text" data-text={scanlator} />
                     </TypographyMaxLines>
                 </CustomTooltip>
             )}

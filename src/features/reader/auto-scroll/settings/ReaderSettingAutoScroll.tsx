@@ -23,13 +23,16 @@ export const ReaderSettingAutoScroll = ({
     return (
         <>
             <CheckboxInput
-                label={t('reader.settings.auto_scroll.smooth')}
+                // FIX 1: Ghost Text for Checkbox Label
+                label={<span className="yomitan-ghost-text" data-text={t('reader.settings.auto_scroll.smooth')} />}
                 checked={autoScroll.smooth}
                 onChange={(_, checked) => setAutoScroll({ ...autoScroll, smooth: checked }, true)}
             />
             <SliderInput
-                label={t('reader.settings.auto_scroll.speed')}
-                value={t('global.time.seconds.value', { count: autoScroll.value })}
+                // FIX 2: Ghost Text for Slider Label
+                label={<span className="yomitan-ghost-text" data-text={t('reader.settings.auto_scroll.speed')} />}
+                // FIX 3: Ghost Text for the visible Value (e.g. "5 Seconds")
+                value={<span className="yomitan-ghost-text" data-text={t('global.time.seconds.value', { count: autoScroll.value })} />}
                 onDefault={() =>
                     setAutoScroll({ ...autoScroll, value: DEFAULT_READER_SETTINGS.autoScroll.value }, true)
                 }
