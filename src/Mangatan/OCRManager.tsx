@@ -8,8 +8,9 @@ import { YomitanPopup } from './components/YomitanPopup';
 export const OCRManager = () => {
     const images = useMangaObserver(); 
     const [showSettings, setShowSettings] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    // --- SCROLL LOCK LOGIC ---
+    // --- SCROLL LOCK ---
     useEffect(() => {
         const checkUrl = () => {
             const isReader = window.location.href.includes('/chapter/');
@@ -28,11 +29,24 @@ export const OCRManager = () => {
         };
     }, []);
 
+    // --- REFRESH ON RESIZE ---
+    useEffect(() => {
+        const handleResize = () => setRefreshKey(prev => prev + 1);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     return (
         <>
             <ChapterListInjector />
             
-            {images.map(img => <ImageOverlay key={img.src} img={img} />)}
+            {/* Key forces re-render on zoom/resize */}
+            {images.map(img => (
+                <ImageOverlay 
+                    key={`${img.src}-${refreshKey}`} 
+                    img={img} 
+                />
+            ))}
             
             <YomitanPopup />
 

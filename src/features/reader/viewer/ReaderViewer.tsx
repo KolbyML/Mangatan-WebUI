@@ -74,6 +74,31 @@ const BaseReaderViewer = ({
 }) => {
     const { direction: themeDirection } = useTheme();
     const isOverlayVisible = useReaderOverlayStore((state) => state.overlay.isVisible);
+    
+    // --- TOP LEVEL HOOKS START ---
+    const scrollElementRef = useRef<HTMLDivElement | null>(null);
+    const scrollTimeout = useRef<number | undefined>(undefined);
+
+    useEffect(() => {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (!isMobile) return;
+
+        const handleInputMove = (e: Event) => {
+            const ce = e as CustomEvent;
+            const { dx, dy } = ce.detail;
+            
+            // Only manually scroll if we are NOT in zoom mode
+            if (!document.body.classList.contains('disable-native-scroll') && scrollElementRef.current) {
+                if (dy !== 0) scrollElementRef.current.scrollTop += dy;
+                if (dx !== 0) scrollElementRef.current.scrollLeft += dx;
+            }
+        };
+
+        window.addEventListener('ocr-input-move', handleInputMove);
+        return () => window.removeEventListener('ocr-input-move', handleInputMove);
+    }, []);
+    // ----------------------------
+
     const {
         currentPageIndex,
         pageToScrollToIndex,
@@ -142,7 +167,6 @@ const BaseReaderViewer = ({
         resumeMode: ReaderResumeMode.START,
     };
 
-    const scrollElementRef = useRef<HTMLDivElement | null>(null);
     const mergedRef = useMergedRef(ref, scrollElementRef);
 
     const isContinuousVerticalReadingModeActive = isContinuousVerticalReadingMode(readingMode);
@@ -155,6 +179,7 @@ const BaseReaderViewer = ({
         resume: state.autoScroll.resume,
         setScrollRef: state.autoScroll.setScrollRef,
     }));
+
     useEffect(() => automaticScrolling.setScrollRef(scrollElementRef.current), []);
 
     const scrollbarXSize = MediaQuery.useGetScrollbarSize('width', scrollElementRef.current);
@@ -288,9 +313,31 @@ const BaseReaderViewer = ({
         throw new Error('ReaderViewer: illegal state - initialChapter and currentChapter should not be undefined');
     }
 
+    const handleScroll = (e: React.UIEvent) => {
+        if (!isDragging) {
+             ReaderControls.updateCurrentPageOnScroll(
+                imageRefs,
+                totalPages - 1,
+                updateCurrentPageIndex,
+                inViewportType,
+                readingDirection,
+            );
+        }
+        // Mobile-only glitch fix
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            document.body.classList.add('ocr-interaction');
+            window.clearTimeout(scrollTimeout.current);
+            scrollTimeout.current = window.setTimeout(() => {
+                document.body.classList.remove('ocr-interaction');
+                window.dispatchEvent(new Event('resize')); 
+            }, 150);
+        }
+    };
+
     return (
         <Stack
             ref={mergedRef}
+            className="reader-scroll-container"
             sx={{
                 width: '100%',
                 height: '100%',
@@ -310,18 +357,9 @@ const BaseReaderViewer = ({
                 }),
             }}
             onClick={(e) => !isDragging && ReaderControls.handleClick(scrollElementRef.current, e)}
-            onScroll={() =>
-                ReaderControls.updateCurrentPageOnScroll(
-                    imageRefs,
-                    totalPages - 1,
-                    updateCurrentPageIndex,
-                    inViewportType,
-                    readingDirection,
-                )
-            }
+            onScroll={handleScroll}
         >
             {chaptersToRender.map((_, index) => {
-                // chapters are sorted by latest to oldest, thus, loop over it in reversed order
                 const chapterIndex = Math.max(0, chaptersToRender.length - index - 1);
                 const chapter = chaptersToRender[chapterIndex];
 

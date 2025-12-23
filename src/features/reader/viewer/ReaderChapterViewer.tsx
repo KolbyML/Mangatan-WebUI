@@ -11,6 +11,7 @@ import Stack from '@mui/material/Stack';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import Box from '@mui/material/Box';
+import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch"; 
 import {
     IReaderSettings,
     ReaderPagerProps,
@@ -128,8 +129,41 @@ const BaseReaderChapterViewer = ({
     const { t } = useTranslation();
     const { direction: themeDirection } = useTheme();
 
-    const [fetchPages, pagesResponse] = requestManager.useGetChapterPagesFetch(chapterId ?? -1);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+    // --- ZOOM STATE ---
+    const [scale, setScale] = useState(1);
+    const zoomRef = useRef<ReactZoomPanPinchRef | null>(null);
+
+    const onInteractionStart = () => {
+        if (isMobile) document.body.classList.add('ocr-interaction');
+    };
+    const onInteractionStop = () => {
+        if (isMobile) {
+            document.body.classList.remove('ocr-interaction');
+            window.dispatchEvent(new Event('resize')); 
+        }
+    };
+
+    const isScaleChanged = Math.abs(scale - 1) > 0.01;
+
+    // Manual Input Listener (from TextBox dragging)
+    useEffect(() => {
+        if (!isMobile) return;
+        const handleManualMove = (e: Event) => {
+            const { dx, dy } = (e as CustomEvent).detail;
+            if (isScaleChanged && zoomRef.current) {
+                const { state, instance } = zoomRef.current;
+                const newX = state.positionX - dx; 
+                const newY = state.positionY - dy;
+                instance.setTransformState(state.scale, newX, newY);
+            }
+        };
+        window.addEventListener('ocr-input-move', handleManualMove);
+        return () => window.removeEventListener('ocr-input-move', handleManualMove);
+    }, [isMobile, isScaleChanged]);
+
+    const [fetchPages, pagesResponse] = requestManager.useGetChapterPagesFetch(chapterId ?? -1);
     const [arePagesFetched, setArePagesFetched] = useState(false);
     const [totalPages, setTotalPages] = useState<ReaderStatePages['totalPages']>(READER_DEFAULT_PAGES_STATE.totalPages);
     const [pageUrls, setPageUrls] = useState<ReaderStatePages['pageUrls']>(READER_DEFAULT_PAGES_STATE.pageUrls);
@@ -148,19 +182,12 @@ const BaseReaderChapterViewer = ({
 
     const actualPages = useMemo(() => {
         const arePagesLoaded = !!totalPages;
-        if (!arePagesLoaded) {
-            return pages;
-        }
-
+        if (!arePagesLoaded) return pages;
         const isSpreadStateUpdated = totalPages === pagesToSpreadState.length;
-        if (!isSpreadStateUpdated) {
-            return pages;
-        }
-
+        if (!isSpreadStateUpdated) return pages;
         if (readingMode === ReadingMode.DOUBLE_PAGE) {
             return getDoublePageModePages(pageUrls, pagesToSpreadState, shouldOffsetDoubleSpreads, readingDirection);
         }
-
         return pages;
     }, [pagesToSpreadState, readingMode, shouldOffsetDoubleSpreads, readingDirection, totalPages]);
 
@@ -184,12 +211,8 @@ const BaseReaderChapterViewer = ({
     }
 
     const doFetchPages = useCallback(() => {
-        if (!chapterId) {
-            return;
-        }
-
+        if (!chapterId) return;
         setArePagesFetched(false);
-
         fetchPages({ variables: { input: { chapterId } } }).catch(
             defaultPromiseErrorHandler(`ReaderChapterViewer(${chapterId})::fetchPages`),
         );
@@ -201,10 +224,7 @@ const BaseReaderChapterViewer = ({
                 actualPages,
                 setPagesToSpreadState,
                 (value) => {
-                    if (isCurrentChapterRef.current) {
-                        setContextPageLoadStates(value);
-                    }
-
+                    if (isCurrentChapterRef.current) setContextPageLoadStates(value);
                     setPageLoadStates(value);
                 },
                 readingMode,
@@ -215,10 +235,7 @@ const BaseReaderChapterViewer = ({
     const onError = useMemo(
         () =>
             createHandleReaderPageLoadError((value) => {
-                if (isCurrentChapterRef.current) {
-                    setContextPageLoadStates(value);
-                }
-
+                if (isCurrentChapterRef.current) setContextPageLoadStates(value);
                 setPageLoadStates(value);
             }),
         [],
@@ -245,13 +262,8 @@ const BaseReaderChapterViewer = ({
         setGlobalState: (value: T) => void,
         forceLocal: boolean = false,
     ) => {
-        if (forceLocal || !arePagesFetched) {
-            setLocalState(value);
-        }
-
-        if (isCurrentChapter) {
-            setGlobalState(value);
-        }
+        if (forceLocal || !arePagesFetched) setLocalState(value);
+        if (isCurrentChapter) setGlobalState(value);
     };
     useReaderSetPagesState(
         isCurrentChapter,
@@ -292,11 +304,6 @@ const BaseReaderChapterViewer = ({
         readingMode,
     );
 
-    // for non-continuous reading modes, only the current, previous and next chapter are relevant
-    // every other chapter does not need to be rendered all the time since it's not affecting the
-    // visible content anyway
-    // the previous and next chapter are rendered so that going to the previous/next chapter feels smoother
-    // since the relevant pages are already rendered
     const shouldRenderChapterViewer =
         isContinuousReadingModeActive || isCurrentChapter || isPreviousChapter || isNextChapter;
     if (!shouldRenderChapterViewer) {
@@ -304,10 +311,7 @@ const BaseReaderChapterViewer = ({
     }
 
     if (pagesResponse.error) {
-        if (shouldHideChapter) {
-            return null;
-        }
-
+        if (shouldHideChapter) return null;
         return (
             <Box
                 sx={{
@@ -330,10 +334,7 @@ const BaseReaderChapterViewer = ({
     }
 
     if (pagesResponse.loading || !arePagesFetched) {
-        if (shouldHideChapter) {
-            return null;
-        }
-
+        if (shouldHideChapter) return null;
         return (
             <Box
                 sx={{
@@ -349,10 +350,7 @@ const BaseReaderChapterViewer = ({
     }
 
     if (chapterId != null && !totalPages) {
-        if (shouldHideChapter) {
-            return null;
-        }
-
+        if (shouldHideChapter) return null;
         return (
             <Box sx={{ minWidth: '100%', minHeight: '100%', position: 'relative' }}>
                 <EmptyViewAbsoluteCentered message={t('reader.error.label.no_pages_found')} retry={doFetchPages} />
@@ -360,54 +358,8 @@ const BaseReaderChapterViewer = ({
         );
     }
 
-    return (
-        <Stack
-            ref={ref}
-            sx={{
-                width: 'fit-content',
-                height: 'fit-content',
-                margin: 'auto',
-                flexWrap: 'nowrap',
-                ...applyStyles(readingMode === ReadingMode.CONTINUOUS_HORIZONTAL, {
-                    minHeight,
-                }),
-                ...applyStyles(isContinuousVerticalReadingMode(readingMode), {
-                    minWidth,
-                }),
-                ...applyStyles(shouldHideChapter, {
-                    maxWidth: 0,
-                    maxHeight: 0,
-                    minWidth: 'unset',
-                    minHeight: 'unset',
-                    overflow: 'hidden',
-                    margin: 'unset',
-                }),
-                ...applyStyles(
-                    isContinuousVerticalReadingMode(readingMode) && shouldApplyReaderWidth(readerWidth, pageScaleMode),
-                    { alignItems: 'center' },
-                ),
-                ...applyStyles(readingMode === ReadingMode.CONTINUOUS_HORIZONTAL, {
-                    ...applyStyles(themeDirection === 'ltr', {
-                        flexDirection: isLtrReadingDirection ? 'row' : 'row-reverse',
-                    }),
-                    ...applyStyles(themeDirection === 'rtl', {
-                        flexDirection: isLtrReadingDirection ? 'row-reverse' : 'row',
-                    }),
-                }),
-            }}
-        >
-            {!isPreloadMode && (
-                <ReaderInfiniteScrollUpdateChapter
-                    chapterId={chapterId}
-                    previousChapterId={previousChapterId}
-                    nextChapterId={nextChapterId}
-                    isCurrentChapter={isCurrentChapter}
-                    isPreviousChapterVisible={isPreviousChapterVisible}
-                    isNextChapterVisible={isNextChapterVisible}
-                    imageWrapper={pagerRef.current}
-                    scrollElement={scrollElement}
-                />
-            )}
+    const PagerContent = (
+        <>
             {showPreviousTransitionPage && (
                 <ReaderTransitionPage chapterId={chapterId} type={ReaderTransitionPageMode.PREVIOUS} />
             )}
@@ -441,6 +393,128 @@ const BaseReaderChapterViewer = ({
             {showNextTransitionPage && (
                 <ReaderTransitionPage chapterId={chapterId} type={ReaderTransitionPageMode.NEXT} />
             )}
+        </>
+    );
+
+    // --- DETERMINE STYLES ---
+    const isVertical = isContinuousVerticalReadingMode(readingMode);
+    const isHorizontalContinuous = readingMode === ReadingMode.CONTINUOUS_HORIZONTAL;
+    
+    const contentStyle = {
+        // Horizontal Continuous needs AUTO width so it can expand sideways
+        // Vertical needs 100% width so it fits screen width
+        width: isVertical ? '100%' : (isHorizontalContinuous ? 'auto' : '100%'),
+        height: isVertical ? 'auto' : '100%',
+    };
+
+    // Determine correct touch-action for native browser scrolling
+    let nativeTouchAction = 'auto';
+    if (isVertical) nativeTouchAction = 'pan-y'; // Webtoon: Browser handles Y
+    else if (isHorizontalContinuous) nativeTouchAction = 'pan-x'; // Horizontal Strip: Browser handles X
+    else nativeTouchAction = 'pan-x pan-y'; // Single/Double: Browser handles everything
+
+    return (
+        <Stack
+            ref={ref}
+            sx={{
+                width: isVertical ? '100%' : 'fit-content',
+                height: isHorizontalContinuous ? '100%' : 'fit-content',
+                margin: 'auto',
+                flexWrap: 'nowrap',
+                ...applyStyles(isHorizontalContinuous, {
+                    minHeight,
+                }),
+                ...applyStyles(isVertical, {
+                    minWidth,
+                }),
+                ...applyStyles(shouldHideChapter, {
+                    maxWidth: 0,
+                    maxHeight: 0,
+                    minWidth: 'unset',
+                    minHeight: 'unset',
+                    overflow: 'hidden',
+                    margin: 'unset',
+                }),
+                ...applyStyles(
+                    isVertical && shouldApplyReaderWidth(readerWidth, pageScaleMode),
+                    { alignItems: 'center' },
+                ),
+                ...applyStyles(readingMode === ReadingMode.CONTINUOUS_HORIZONTAL, {
+                    ...applyStyles(themeDirection === 'ltr', {
+                        flexDirection: isLtrReadingDirection ? 'row' : 'row-reverse',
+                    }),
+                    ...applyStyles(themeDirection === 'rtl', {
+                        flexDirection: isLtrReadingDirection ? 'row-reverse' : 'row',
+                    }),
+                }),
+            }}
+        >
+            {!isPreloadMode && (
+                <ReaderInfiniteScrollUpdateChapter
+                    chapterId={chapterId}
+                    previousChapterId={previousChapterId}
+                    nextChapterId={nextChapterId}
+                    isCurrentChapter={isCurrentChapter}
+                    isPreviousChapterVisible={isPreviousChapterVisible}
+                    isNextChapterVisible={isNextChapterVisible}
+                    imageWrapper={pagerRef.current}
+                    scrollElement={scrollElement}
+                />
+            )}
+            
+            <TransformWrapper
+                ref={zoomRef}
+                key={chapterId}
+                initialScale={1}
+                minScale={1}
+                maxScale={5}
+                limitToBounds={true} 
+                disablePadding={true} 
+                centerOnInit={true}
+                
+                doubleClick={{ mode: 'toggle', step: 2, disabled: false, animationTime: 0 }}
+
+                disabled={!isMobile || !isCurrentChapter} 
+                
+                panning={{ 
+                    disabled: !isScaleChanged, 
+                    velocityDisabled: false 
+                }}
+                
+                wheel={{ disabled: true }}
+
+                onTransformed={(ref) => {
+                    const newScale = ref.state.scale;
+                    setScale(newScale);
+                    
+                    if (newScale > 1.01) {
+                        document.body.classList.add('disable-native-scroll');
+                    } else {
+                        document.body.classList.remove('disable-native-scroll');
+                    }
+                    if (scrollElement) scrollElement.dispatchEvent(new Event('scroll'));
+                }}
+                
+                onZoomStart={onInteractionStart}
+                onPanningStart={onInteractionStart}
+                onZoomStop={onInteractionStop}
+                onPanningStop={onInteractionStop}
+            >
+                <TransformComponent
+                    wrapperStyle={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        overflow: 'hidden',
+                        // CSS Magic: Block browser if zoomed, otherwise allow mode-specific scroll
+                        touchAction: isScaleChanged ? 'none' : nativeTouchAction,
+                        // REMOVED Flex centering to prevent top-clipping in long strips
+                        display: 'block' 
+                    }}
+                    contentStyle={contentStyle}
+                >
+                    {PagerContent}
+                </TransformComponent>
+            </TransformWrapper>
         </Stack>
     );
 };
