@@ -131,36 +131,6 @@ export const VersionInfo = ({
             <Typography component="span" variant="body2">
                 {version}
             </Typography>
-            <Button
-                sx={{
-                    marginTop: '5px',
-                    backgroundColor: 'transparent',
-                    pointerEvents: isUpdateInProgress ? 'none' : 'unset',
-                }}
-                size="small"
-                variant="outlined"
-                startIcon={getUpdateCheckButtonIcon(
-                    isCheckingForUpdate,
-                    isUpdateAvailable,
-                    updateState,
-                    downloadAsLink,
-                )}
-                onClick={onClick}
-                {...(!!url && isUpdateAvailable
-                    ? {
-                          href: url,
-                          target: '_blank',
-                      }
-                    : undefined)}
-            >
-                {getUpdateCheckButtonText(
-                    isCheckingForUpdate,
-                    isUpdateAvailable,
-                    updateCheckError,
-                    updateState,
-                    progress,
-                )}
-            </Button>
         </Stack>
     );
 };

@@ -5,22 +5,15 @@ import { apiRequest } from '@/Mangatan/utils/api';
 import { DictionaryManager } from './DictionaryManager';
 
 const checkboxLabelStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: '8px',
-    cursor: 'pointer',
-    textAlign: 'left', 
+    display: 'flex', alignItems: 'center', marginBottom: '8px', cursor: 'pointer', textAlign: 'left', 
 };
 
 const checkboxInputStyle: React.CSSProperties = {
-    width: 'auto',      
-    marginRight: '10px',  
-    flexShrink: 0,     
-    cursor: 'pointer',
+    width: 'auto', marginRight: '10px', flexShrink: 0, cursor: 'pointer',
 };
 
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { settings, setSettings } = useOCR();
+    const { settings, setSettings, showConfirm, showAlert, showProgress, closeDialog } = useOCR();
     const [localSettings, setLocalSettings] = useState(settings);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dictManagerKey, setDictManagerKey] = useState(0);
@@ -30,59 +23,71 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     };
 
     const save = () => {
-        // FIX: Manually save to localStorage before reloading.
-        // Previously, the reload happened before the OCRContext useEffect could trigger, 
-        // causing changes to be lost (race condition).
         localStorage.setItem('mangatan_settings_v3', JSON.stringify(localSettings));
-        
         setSettings(localSettings);
         onClose();
         window.location.reload();
     };
 
     const resetToDefaults = () => {
-        // eslint-disable-next-line no-restricted-globals, no-alert
-        if (window.confirm('Reset all settings to default?')) {
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            
-            setLocalSettings({
-                ...DEFAULT_SETTINGS,
-                mobileMode: isMobile,
-                enableYomitan: isiOS // Reverted to logic: OFF on PC, ON on iOS
-            });
-        }
-    };
-
-    const purgeCache = async () => {
-        // eslint-disable-next-line no-restricted-globals, no-alert
-        if (!window.confirm('Purge Server OCR Cache?')) return;
-        try {
-            await apiRequest(`/api/ocr/purge-cache`, { method: 'POST' });
-            // eslint-disable-next-line no-alert
-            window.alert('Cache Purged');
-        } catch (e) {
-            // eslint-disable-next-line no-alert
-            window.alert('Failed');
-        }
-    };
-
-    const resetYomitanDB = async () => {
-        // eslint-disable-next-line no-restricted-globals, no-alert
-        if (!window.confirm('Are you sure you want to RESET the dictionary database?\n\nThis will DELETE all custom dictionaries and restore the default JMdict.\nThis action cannot be undone.')) return;
-        try {
-            const res = await apiRequest<{status: string, message: string}>(`/api/yomitan/reset`, { method: 'POST' });
-            if (res.status === 'ok') {
-                // eslint-disable-next-line no-alert
-                window.alert('Dictionary database reset successfully.\nThe default dictionary is being imported in the background.');
-                setDictManagerKey(prev => prev + 1);
-            } else {
-                 throw new Error(res.message || 'Unknown Error');
+        showConfirm(
+            'Reset Defaults?',
+            'This will reset all OCR settings to their default values.',
+            () => {
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                
+                setLocalSettings({
+                    ...DEFAULT_SETTINGS,
+                    mobileMode: isMobile,
+                    enableYomitan: isiOS
+                });
+                closeDialog(); // FIX: Explicitly close since we changed GlobalDialog behavior
             }
-        } catch (e: any) {
-            // eslint-disable-next-line no-alert
-            window.alert('Failed to reset DB: ' + e.message);
-        }
+        );
+    };
+
+    const purgeCache = () => {
+        showConfirm('Purge Cache?', 'Are you sure you want to purge the Server OCR Cache?', async () => {
+            try {
+                showProgress('Purging Cache...');
+                await apiRequest(`/api/ocr/purge-cache`, { method: 'POST' });
+                closeDialog(); 
+                showAlert('Success', 'Cache Purged');
+            } catch (e) {
+                closeDialog();
+                showAlert('Error', 'Failed to purge cache');
+            }
+        });
+    };
+
+    const resetYomitanDB = () => {
+        showConfirm(
+            'Reset Dictionary DB?',
+            <div>
+                <p>Are you sure you want to <b>RESET</b> the dictionary database?</p>
+                <br/>
+                <p>This will <b>DELETE all custom dictionaries</b> and restore the default JMdict.</p>
+                <p style={{color: '#ff484b'}}>This action cannot be undone.</p>
+            </div>,
+            async () => {
+                try {
+                    showProgress('Resetting Database & Importing Defaults...');
+                    const res = await apiRequest<{status: string, message: string}>(`/api/yomitan/reset`, { method: 'POST' });
+                    
+                    if (res.status === 'ok') {
+                        closeDialog(); 
+                        showAlert('Success', 'Dictionary database reset successfully.\nThe default dictionary is being imported in the background.');
+                        setDictManagerKey(prev => prev + 1);
+                    } else {
+                         throw new Error(res.message || 'Unknown Error');
+                    }
+                } catch (e: any) {
+                    closeDialog();
+                    showAlert('Error', 'Failed to reset DB: ' + e.message);
+                }
+            }
+        );
     };
 
     const handleImportClick = () => {
@@ -96,24 +101,25 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             formData.append('file', file);
 
             try {
-                // eslint-disable-next-line no-alert
-                window.alert('Importing... This may take a moment.');
+                showProgress(`Importing ${file.name}...\nPlease do not close this page.`);
+                
                 const res = await fetch('/api/yomitan/import', {
                     method: 'POST',
                     body: formData,
                 });
                 const json = await res.json();
+                
+                closeDialog(); 
+
                 if (json.status === 'ok') {
-                     // eslint-disable-next-line no-alert
-                    window.alert('Import Successful: ' + json.message);
+                    showAlert('Import Successful', json.message);
                     setDictManagerKey(prev => prev + 1);
                 } else {
-                     // eslint-disable-next-line no-alert
-                    window.alert('Import Failed: ' + json.message);
+                    showAlert('Import Failed', json.message);
                 }
             } catch (err) {
-                 // eslint-disable-next-line no-alert
-                window.alert('Import Failed: ' + err);
+                closeDialog();
+                showAlert('Import Failed', String(err));
             }
             
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -127,245 +133,74 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     <h2>Settings</h2>
                 </div>
                 <div className="ocr-modal-content">
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        style={{ display: 'none' }} 
-                        accept=".zip" 
-                        onChange={handleFileChange} 
-                    />
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".zip" onChange={handleFileChange} />
 
-                    {/* Dictionary Manager Section */}
                     {localSettings.enableYomitan && (
-                        <DictionaryManager 
-                            key={dictManagerKey} 
-                            onImportClick={handleImportClick} 
-                        />
+                        <DictionaryManager key={dictManagerKey} onImportClick={handleImportClick} />
                     )}
 
                     <h3>Visuals</h3>
                     <div className="grid">
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="colorTheme">Theme</label>
-                        <select
-                            id="colorTheme"
-                            value={localSettings.colorTheme}
-                            onChange={(e) => handleChange('colorTheme', e.target.value)}
-                        >
-                            {Object.keys(COLOR_THEMES).map((k) => (
-                                <option key={k} value={k}>
-                                    {k}
-                                </option>
-                            ))}
+                        <select id="colorTheme" value={localSettings.colorTheme} onChange={(e) => handleChange('colorTheme', e.target.value)}>
+                            {Object.keys(COLOR_THEMES).map((k) => <option key={k} value={k}>{k}</option>)}
                         </select>
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="brightnessMode">Brightness</label>
-                        <select
-                            id="brightnessMode"
-                            value={localSettings.brightnessMode}
-                            onChange={(e) => handleChange('brightnessMode', e.target.value)}
-                        >
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
+                        <select id="brightnessMode" value={localSettings.brightnessMode} onChange={(e) => handleChange('brightnessMode', e.target.value)}>
+                            <option value="light">Light</option><option value="dark">Dark</option>
                         </select>
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="focusFontColor">Text Color</label>
-                        <select
-                            id="focusFontColor"
-                            value={localSettings.focusFontColor}
-                            onChange={(e) => handleChange('focusFontColor', e.target.value)}
-                        >
-                            <option value="default">Default</option>
-                            <option value="black">Black</option>
-                            <option value="white">White</option>
-                            <option value="difference">Difference (Blend)</option>
+                        <select id="focusFontColor" value={localSettings.focusFontColor} onChange={(e) => handleChange('focusFontColor', e.target.value)}>
+                            <option value="default">Default</option><option value="black">Black</option><option value="white">White</option><option value="difference">Difference (Blend)</option>
                         </select>
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="textOrientation">Orientation</label>
-                        <select
-                            id="textOrientation"
-                            value={localSettings.textOrientation}
-                            onChange={(e) => handleChange('textOrientation', e.target.value)}
-                        >
-                            <option value="smart">Smart</option>
-                            <option value="forceHorizontal">Horizontal</option>
-                            <option value="forceVertical">Vertical</option>
+                        <select id="textOrientation" value={localSettings.textOrientation} onChange={(e) => handleChange('textOrientation', e.target.value)}>
+                            <option value="smart">Smart</option><option value="forceHorizontal">Horizontal</option><option value="forceVertical">Vertical</option>
                         </select>
                     </div>
 
                     <h3>Fine Tuning</h3>
                     <div className="grid">
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="dimmedOpacity">Opacity</label>
-                        <input
-                            id="dimmedOpacity"
-                            type="number"
-                            step="0.1"
-                            max="1"
-                            min="0"
-                            value={localSettings.dimmedOpacity}
-                            onChange={(e) => handleChange('dimmedOpacity', parseFloat(e.target.value))}
-                        />
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
+                        <input id="dimmedOpacity" type="number" step="0.1" max="1" min="0" value={localSettings.dimmedOpacity} onChange={(e) => handleChange('dimmedOpacity', parseFloat(e.target.value))} />
                         <label htmlFor="focusScale">Scale</label>
-                        <input
-                            id="focusScale"
-                            type="number"
-                            step="0.1"
-                            value={localSettings.focusScaleMultiplier}
-                            onChange={(e) => handleChange('focusScaleMultiplier', parseFloat(e.target.value))}
-                        />
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
+                        <input id="focusScale" type="number" step="0.1" value={localSettings.focusScaleMultiplier} onChange={(e) => handleChange('focusScaleMultiplier', parseFloat(e.target.value))} />
                         <label htmlFor="fontMultH">H. Font Mult</label>
-                        <input
-                            id="fontMultH"
-                            type="number"
-                            step="0.1"
-                            value={localSettings.fontMultiplierHorizontal}
-                            onChange={(e) => handleChange('fontMultiplierHorizontal', parseFloat(e.target.value))}
-                        />
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
+                        <input id="fontMultH" type="number" step="0.1" value={localSettings.fontMultiplierHorizontal} onChange={(e) => handleChange('fontMultiplierHorizontal', parseFloat(e.target.value))} />
                         <label htmlFor="fontMultV">V. Font Mult</label>
-                        <input
-                            id="fontMultV"
-                            type="number"
-                            step="0.1"
-                            value={localSettings.fontMultiplierVertical}
-                            onChange={(e) => handleChange('fontMultiplierVertical', parseFloat(e.target.value))}
-                        />
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
+                        <input id="fontMultV" type="number" step="0.1" value={localSettings.fontMultiplierVertical} onChange={(e) => handleChange('fontMultiplierVertical', parseFloat(e.target.value))} />
                         <label htmlFor="boxAdjust">Box Adjust (px)</label>
-                        <input
-                            id="boxAdjust"
-                            type="number"
-                            step="1"
-                            value={localSettings.boundingBoxAdjustment}
-                            onChange={(e) => handleChange('boundingBoxAdjustment', parseInt(e.target.value, 10))}
-                        />
+                        <input id="boxAdjust" type="number" step="1" value={localSettings.boundingBoxAdjustment} onChange={(e) => handleChange('boundingBoxAdjustment', parseInt(e.target.value, 10))} />
                     </div>
 
                     <h3>Interaction</h3>
                     <div className="grid">
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="interactMode">Mode</label>
-                        <select
-                            id="interactMode"
-                            value={localSettings.interactionMode}
-                            onChange={(e) => handleChange('interactionMode', e.target.value)}
-                        >
-                            <option value="hover">Hover</option>
-                            <option value="click">Click</option>
+                        <select id="interactMode" value={localSettings.interactionMode} onChange={(e) => handleChange('interactionMode', e.target.value)}>
+                            <option value="hover">Hover</option><option value="click">Click</option>
                         </select>
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                         <label htmlFor="delKey">Delete Key</label>
-                        <input
-                            id="delKey"
-                            value={localSettings.deleteModifierKey}
-                            onChange={(e) => handleChange('deleteModifierKey', e.target.value)}
-                            placeholder="Alt, Control, Shift..."
-                        />
-                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
+                        <input id="delKey" value={localSettings.deleteModifierKey} onChange={(e) => handleChange('deleteModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
                         <label htmlFor="mergeKey">Merge Key</label>
-                        <input
-                            id="mergeKey"
-                            value={localSettings.mergeModifierKey}
-                            onChange={(e) => handleChange('mergeModifierKey', e.target.value)}
-                            placeholder="Alt, Control, Shift..."
-                        />
+                        <input id="mergeKey" value={localSettings.mergeModifierKey} onChange={(e) => handleChange('mergeModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
                     </div>
 
                     <div className="checkboxes">
-                        <label style={checkboxLabelStyle}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.enableOverlay}
-                                onChange={(e) => handleChange('enableOverlay', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Enable Text Overlay
-                        </label>
-
-                        <label style={checkboxLabelStyle}>
-                            <input 
-                                type="checkbox"
-                                checked={localSettings.enableYomitan}
-                                onChange={e => handleChange('enableYomitan', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Enable Popup Dictionary
-                        </label>
-
-                        <label style={checkboxLabelStyle}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.soloHoverMode}
-                                onChange={(e) => handleChange('soloHoverMode', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Solo Hover
-                        </label>
-
-                        <label style={checkboxLabelStyle}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.addSpaceOnMerge}
-                                onChange={(e) => handleChange('addSpaceOnMerge', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Add Space on Merge
-                        </label>
-
-                        <label style={checkboxLabelStyle}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.mobileMode}
-                                onChange={(e) => handleChange('mobileMode', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Mobile Mode
-                        </label>
-
-                        <label style={checkboxLabelStyle}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.debugMode}
-                                onChange={(e) => handleChange('debugMode', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Debug Mode
-                        </label>
-                        <label style={checkboxLabelStyle}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.disableStatusIcon}
-                                onChange={(e) => handleChange('disableStatusIcon', e.target.checked)}
-                                style={checkboxInputStyle}
-                            />
-                            Disable Status Icon
-                        </label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />Enable Text Overlay</label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableYomitan} onChange={e => handleChange('enableYomitan', e.target.checked)} style={checkboxInputStyle} />Enable Popup Dictionary</label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.soloHoverMode} onChange={(e) => handleChange('soloHoverMode', e.target.checked)} style={checkboxInputStyle} />Solo Hover</label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.addSpaceOnMerge} onChange={(e) => handleChange('addSpaceOnMerge', e.target.checked)} style={checkboxInputStyle} />Add Space on Merge</label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.mobileMode} onChange={(e) => handleChange('mobileMode', e.target.checked)} style={checkboxInputStyle} />Mobile Mode</label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.debugMode} onChange={(e) => handleChange('debugMode', e.target.checked)} style={checkboxInputStyle} />Debug Mode</label>
+                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.disableStatusIcon} onChange={(e) => handleChange('disableStatusIcon', e.target.checked)} style={checkboxInputStyle} />Disable Status Icon</label>
                     </div>
                 </div>
                 <div className="ocr-modal-footer">
-                    <button type="button" className="danger" onClick={purgeCache}>
-                        Purge Cache
-                    </button>
-                    <button type="button" className="danger" onClick={resetYomitanDB} style={{ background: '#c0392b', borderColor: '#e74c3c' }}>
-                        Reset Dictionary DB
-                    </button>
-                    <button
-                        type="button"
-                        className="warning"
-                        onClick={resetToDefaults}
-                        style={{ marginRight: 'auto', background: '#e67e22', borderColor: '#d35400' }}
-                    >
-                        Reset Defaults
-                    </button>
-                    <button type="button" onClick={onClose}>
-                        Cancel
-                    </button>
-                    <button type="button" className="primary" onClick={save}>
-                        Save & Reload
-                    </button>
+                    <button type="button" className="danger" onClick={purgeCache}>Purge Cache</button>
+                    <button type="button" className="danger" onClick={resetYomitanDB} style={{ background: '#c0392b', borderColor: '#e74c3c' }}>Reset Dictionary DB</button>
+                    <button type="button" className="warning" onClick={resetToDefaults} style={{ marginRight: 'auto', background: '#e67e22', borderColor: '#d35400' }}>Reset Defaults</button>
+                    <button type="button" onClick={onClose}>Cancel</button>
+                    <button type="button" className="primary" onClick={save}>Save & Reload</button>
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
-import { Settings, DEFAULT_SETTINGS, MergeState, OcrBlock, COLOR_THEMES, ServerSettingsData, DictPopupState, OcrStatus } from '@/Mangatan/types';
+import { Settings, DEFAULT_SETTINGS, MergeState, OcrBlock, COLOR_THEMES, ServerSettingsData, DictPopupState, OcrStatus, DialogState } from '@/Mangatan/types';
 import { requestManager } from '@/lib/requests/RequestManager';
 
 interface OCRContextType {
@@ -18,6 +18,14 @@ interface OCRContextType {
     // Dictionary State
     dictPopup: DictPopupState;
     setDictPopup: React.Dispatch<React.SetStateAction<DictPopupState>>;
+
+    // Global Dialog State
+    dialogState: DialogState;
+    showDialog: (config: Partial<DialogState>) => void;
+    closeDialog: () => void;
+    showConfirm: (title: string, message: React.ReactNode, onConfirm: () => void) => void;
+    showAlert: (title: string, message: React.ReactNode) => void;
+    showProgress: (message: string) => void;
 
     debugLog: string[];
     addLog: (msg: string) => void;
@@ -48,25 +56,22 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
     const [activeImageSrc, setActiveImageSrc] = useState<string | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
 
-    // Initialize Dictionary State
+    // Dictionary State
     const [dictPopup, setDictPopup] = useState<DictPopupState>({
-        visible: false,
-        x: 0,
-        y: 0,
-        results: [],
-        isLoading: false,
-        systemLoading: false
+        visible: false, x: 0, y: 0, results: [], isLoading: false, systemLoading: false
     });
 
-    const addLog = useCallback(
-        (msg: string) => {
-            if (!settings.debugMode) return;
-            const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            setDebugLog((prev) => [...prev.slice(-99), entry]);
-            console.log(`[OCR] ${entry}`);
-        },
-        [settings.debugMode],
-    );
+    // Global Dialog State
+    const [dialogState, setDialogState] = useState<DialogState>({
+        isOpen: false, type: 'alert', message: ''
+    });
+
+    const addLog = useCallback((msg: string) => {
+        if (!settings.debugMode) return;
+        const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        setDebugLog((prev) => [...prev.slice(-99), entry]);
+        console.log(`[OCR] ${entry}`);
+    }, [settings.debugMode]);
 
     const updateOcrData = useCallback((imgSrc: string, data: OcrBlock[]) => {
         setOcrCache((prev) => new Map(prev).set(imgSrc, data));
@@ -74,11 +79,39 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
 
     const setOcrStatus = useCallback((imgSrc: string, status: OcrStatus) => {
          setOcrStatusMap((prev) => new Map(prev).set(imgSrc, status));
-    }, []);    
+    }, []);
+
+    // --- Dialog Helpers ---
+    
+    // FIX: Explicitly reset onConfirm/onCancel to undefined to prevent state leakage (The Loop Fix)
+    const showDialog = useCallback((config: Partial<DialogState>) => {
+        setDialogState(prev => ({ 
+            ...prev, 
+            isOpen: true, 
+            onConfirm: undefined, 
+            onCancel: undefined,
+            ...config 
+        }));
+    }, []);
+
+    const closeDialog = useCallback(() => {
+        setDialogState(prev => ({ ...prev, isOpen: false }));
+    }, []);
+
+    const showConfirm = useCallback((title: string, message: React.ReactNode, onConfirm: () => void) => {
+        showDialog({ type: 'confirm', title, message, onConfirm });
+    }, [showDialog]);
+
+    const showAlert = useCallback((title: string, message: React.ReactNode) => {
+        showDialog({ type: 'alert', title, message });
+    }, [showDialog]);
+
+    const showProgress = useCallback((message: string) => {
+        showDialog({ type: 'progress', title: 'Processing', message });
+    }, [showDialog]);
 
     useEffect(() => {
         localStorage.setItem('mangatan_settings_v3', JSON.stringify(settings));
-
         const theme = COLOR_THEMES[settings.colorTheme] || COLOR_THEMES.blue;
         document.documentElement.style.setProperty('--ocr-accent', theme.accent);
 
@@ -99,23 +132,19 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
 
     const contextValue = useMemo(
         () => ({
-            settings,
-            setSettings,
-            serverSettings,
-            ocrCache,
-            updateOcrData,
-            ocrStatusMap, 
-            setOcrStatus,
-            mergeAnchor,
-            setMergeAnchor,
-            activeImageSrc,
-            setActiveImageSrc,
-            dictPopup,
-            setDictPopup,
-            debugLog,
-            addLog,
+            settings, setSettings, serverSettings,
+            ocrCache, updateOcrData, ocrStatusMap, setOcrStatus,
+            mergeAnchor, setMergeAnchor, activeImageSrc, setActiveImageSrc,
+            dictPopup, setDictPopup,
+            debugLog, addLog,
+            // Dialog exports
+            dialogState, showDialog, closeDialog, showConfirm, showAlert, showProgress
         }),
-        [settings, serverSettings, ocrCache, updateOcrData, ocrStatusMap, setOcrStatus, mergeAnchor, activeImageSrc, dictPopup, debugLog, addLog],
+        [
+            settings, serverSettings, ocrCache, updateOcrData, ocrStatusMap, setOcrStatus, 
+            mergeAnchor, activeImageSrc, dictPopup, debugLog, addLog,
+            dialogState, showDialog, closeDialog, showConfirm, showAlert, showProgress
+        ],
     );
 
     return <OCRContext.Provider value={contextValue}>{children}</OCRContext.Provider>;

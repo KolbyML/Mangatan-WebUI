@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { getDictionaries, manageDictionary, DictionaryMeta } from '@/Mangatan/utils/api';
+import { useOCR } from '@/Mangatan/context/OCRContext';
 
 export const DictionaryManager: React.FC<{ onImportClick: () => void }> = ({ onImportClick }) => {
+    const { showConfirm, showProgress, closeDialog } = useOCR();
     const [dicts, setDicts] = useState<DictionaryMeta[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -20,11 +22,12 @@ export const DictionaryManager: React.FC<{ onImportClick: () => void }> = ({ onI
     };
 
     const handleDelete = async (id: number, name: string) => {
-        // eslint-disable-next-line no-restricted-globals, no-alert
-        if (!confirm(`Delete dictionary "${name}"? This cannot be undone.`)) return;
-        setLoading(true);
-        await manageDictionary('Delete', { id });
-        refresh();
+        showConfirm('Delete Dictionary?', `Are you sure you want to delete "${name}"?`, async () => {
+            showProgress('Deleting...');
+            await manageDictionary('Delete', { id });
+            await refresh();
+            closeDialog();
+        });
     };
 
     const handleMove = async (index: number, direction: 'up' | 'down') => {
@@ -36,13 +39,11 @@ export const DictionaryManager: React.FC<{ onImportClick: () => void }> = ({ onI
         
         [newDicts[index], newDicts[swapIndex]] = [newDicts[swapIndex], newDicts[index]];
         
-        // Optimistic UI update
         setDicts(newDicts);
 
-        // Send just the IDs in order
         const idOrder = newDicts.map(d => d.id);
         await manageDictionary('Reorder', { order: idOrder });
-        refresh(); // Sync to be safe
+        refresh(); 
     };
 
     return (
@@ -66,44 +67,15 @@ export const DictionaryManager: React.FC<{ onImportClick: () => void }> = ({ onI
                         display: 'flex', alignItems: 'center', gap: '8px', 
                         background: '#333', padding: '6px', marginBottom: '4px', borderRadius: '4px' 
                     }}>
-                        {/* Reorder Buttons */}
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <button 
-                                type="button"
-                                disabled={i === 0}
-                                onClick={() => handleMove(i, 'up')}
-                                style={{ fontSize: '8px', padding: '0 4px', lineHeight: '1', height: '12px' }}
-                            >▲</button>
-                            <button 
-                                type="button"
-                                disabled={i === dicts.length - 1}
-                                onClick={() => handleMove(i, 'down')}
-                                style={{ fontSize: '8px', padding: '0 4px', lineHeight: '1', height: '12px' }}
-                            >▼</button>
+                            <button type="button" disabled={i === 0} onClick={() => handleMove(i, 'up')} style={{ fontSize: '8px', padding: '0 4px', lineHeight: '1', height: '12px' }}>▲</button>
+                            <button type="button" disabled={i === dicts.length - 1} onClick={() => handleMove(i, 'down')} style={{ fontSize: '8px', padding: '0 4px', lineHeight: '1', height: '12px' }}>▼</button>
                         </div>
-
-                        {/* Name */}
-                        <div style={{ flexGrow: 1, fontSize: '13px', color: d.enabled ? '#fff' : '#777' }}>
-                            {d.name}
-                        </div>
-
-                        {/* Toggle */}
+                        <div style={{ flexGrow: 1, fontSize: '13px', color: d.enabled ? '#fff' : '#777' }}>{d.name}</div>
                         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input 
-                                type="checkbox" 
-                                checked={d.enabled} 
-                                onChange={() => handleToggle(d.id, d.enabled)}
-                            />
+                            <input type="checkbox" checked={d.enabled} onChange={() => handleToggle(d.id, d.enabled)} />
                         </label>
-
-                        {/* Delete */}
-                        <button 
-                            type="button" 
-                            onClick={() => handleDelete(d.id, d.name)}
-                            style={{ background: '#c0392b', color: 'white', border: 'none', borderRadius: '3px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        >
-                            ×
-                        </button>
+                        <button type="button" onClick={() => handleDelete(d.id, d.name)} style={{ background: '#c0392b', color: 'white', border: 'none', borderRadius: '3px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</button>
                     </div>
                 ))}
             </div>

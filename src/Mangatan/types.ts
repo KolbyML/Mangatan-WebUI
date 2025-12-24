@@ -42,12 +42,14 @@ export interface Settings {
 
 export type MergeState = { imgSrc: string; index: number; } | null;
 
+// --- MISSING TYPE ADDED HERE ---
+export type OcrStatus = 'idle' | 'loading' | 'success' | 'error';
+
 // --- YOMITAN / DICTIONARY TYPES ---
 
 export interface DictionaryResult {
     headword: string;
     reading: string;
-    // Array of [kanji, reading] tuples
     furigana?: string[][]; 
     definitions: DictionaryDefinition[];
     forms?: { headword: string; reading: string }[];
@@ -57,7 +59,7 @@ export interface DictionaryResult {
 export interface DictionaryDefinition {
     dictionaryName: string;
     tags: string[];
-    content: string[]; // JSON-encoded strings
+    content: string[];
 }
 
 export interface DictPopupState {
@@ -67,6 +69,16 @@ export interface DictPopupState {
     results: DictionaryResult[];
     isLoading: boolean;
     systemLoading?: boolean;
+}
+
+// --- GLOBAL DIALOG STATE ---
+export interface DialogState {
+    isOpen: boolean;
+    type: 'alert' | 'confirm' | 'progress';
+    title?: string;
+    message: React.ReactNode;
+    onConfirm?: () => void;
+    onCancel?: () => void;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
