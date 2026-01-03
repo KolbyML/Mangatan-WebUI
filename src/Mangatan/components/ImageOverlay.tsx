@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useOCR } from '@/Mangatan/context/OCRContext';
-import { OcrStatus, OcrBlock } from '@/Mangatan/types'; // 修正: typesからインポート
+import { OcrStatus, OcrBlock } from '@/Mangatan/types'; 
 import { apiRequest } from '@/Mangatan/utils/api';
 import { TextBox } from '@/Mangatan/components/TextBox';
 import { StatusIcon } from '@/Mangatan/components/StatusIcon';
+import { useReaderOverlayStore } from '@/features/reader/stores/ReaderStore.ts';
 
 export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
     const { settings, serverSettings, ocrCache, updateOcrData, setActiveImageSrc, mergeAnchor, ocrStatusMap, setOcrStatus, dictPopup } = useOCR();
     const [data, setData] = useState<OcrBlock[] | null>(null);
+
+    // Access Reader Overlay visibility state
+    const isReaderOverlayVisible = useReaderOverlayStore((state) => state.overlay.isVisible);
 
     const currentStatus: OcrStatus = ocrCache.has(img.src) ? 'success' : (ocrStatusMap.get(img.src) || 'idle');
     const [rect, setRect] = useState<DOMRect | null>(null);
@@ -28,17 +32,14 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
         try {
             setOcrStatus(img.src, 'loading');
             
-            // --- UPDATED URL CONSTRUCTION ---
             let url = `/api/ocr/ocr?url=${encodeURIComponent(img.src)}`;
             
-            // Pass the setting to the backend
             url += `&add_space_on_merge=${settings.addSpaceOnMerge}`;
 
             if (serverSettings?.authUsername?.trim() && serverSettings?.authPassword?.trim()) {
                 url += `&user=${encodeURIComponent(serverSettings.authUsername.trim())}`;
                 url += `&pass=${encodeURIComponent(serverSettings.authPassword.trim())}`;
             }
-            // --------------------------------
 
             const result = await apiRequest<OcrBlock[]>(url);
 
@@ -52,7 +53,7 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
             console.error("OCR Failed:", err);
             setOcrStatus(img.src, 'error');
         }
-    }, [img.src, ocrCache, setOcrStatus, updateOcrData, serverSettings, settings.addSpaceOnMerge]); // Add dependency
+    }, [img.src, ocrCache, setOcrStatus, updateOcrData, serverSettings, settings.addSpaceOnMerge]); 
     
     useEffect(() => {
         if (!img.src) return;
@@ -191,9 +192,11 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement }> = ({ img }) => {
     const isImgDisplayed = img.offsetParent !== null; 
     const isImgInViewport = rect.top < window.innerHeight && rect.bottom > 0; 
 
+    // MODIFIED: Hide overlay if the Reader Menu is open
     const shouldShowOverlay = (data || currentStatus === 'loading' || currentStatus === 'error')
         && isImgDisplayed
-        && isImgInViewport;
+        && isImgInViewport
+        && !isReaderOverlayVisible;
 
     if (!shouldShowOverlay) return null;
 
