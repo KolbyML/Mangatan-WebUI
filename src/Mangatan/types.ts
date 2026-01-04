@@ -38,6 +38,9 @@ export interface Settings {
     deleteModifierKey: string;
     mergeModifierKey: string;
     site: SiteConfig;
+    ankiConnectEnabled: boolean;
+    ankiSentenceField: string;
+    ankiImageField: string;
 }
 
 export type MergeState = { imgSrc: string; index: number; } | null;
@@ -127,6 +130,9 @@ export const DEFAULT_SETTINGS: Settings = {
         overflowFixSelector: '.MuiBox-root.muiltr-13djdhf',
         contentRootSelector: '#root',
     },
+    ankiConnectEnabled: false,
+    ankiSentenceField: '',
+    ankiImageField: '',
 };
 
 export const COLOR_THEMES: Record<ColorTheme, { accent: string; background: string }> = {

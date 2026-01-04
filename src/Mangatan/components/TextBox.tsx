@@ -37,7 +37,18 @@ export const TextBox: React.FC<{
     onMerge: (src: number, target: number) => void;
     onDelete: (idx: number) => void;
 }> = ({ block, index, imgSrc, containerRect, onUpdate, onMerge, onDelete }) => {
-    const { settings, mergeAnchor, setMergeAnchor, setDictPopup, dictPopup, wasPopupClosedRecently } = useOCR();
+    const { 
+        settings, 
+        mergeAnchor, 
+        setMergeAnchor, 
+        setDictPopup,
+        dictPopup,
+        wasPopupClosedRecently,
+        showConfirm,
+        showProgress,
+        showAlert,
+        closeDialog
+    } = useOCR();
     const [isEditing, setIsEditing] = useState(false);
     const [isActive, setIsActive] = useState(false); 
     const [fontSize, setFontSize] = useState(16);
@@ -147,6 +158,62 @@ export const TextBox: React.FC<{
              }
         }
     }, [isActive, isEditing, settings.mobileMode, index, onUpdate, displayContent]);
+
+    const handleAnkiRequest = (e: React.MouseEvent) => {
+        // Prevent default browser menu
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Prepare the text
+        let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
+        content = content.replace(/\u200B/g, '\n');
+
+        const cleanPath = imgSrc.replace(/^https?:\/\/[^\/]+/, '');
+
+        // 2. Trigger the Confirmation Dialog
+        showConfirm(
+            'Update Anki Card?', // Title
+            'This will overwrite the image and text of the last added card in Anki.', // Message
+            async () => {
+                try {
+                    // 3. Show Loading Spinner
+                    showProgress('Sending to Anki...');
+
+                    // Prepare credentials if they exist
+                    const user = serverSettings?.authUsername?.trim();
+                    const pass = serverSettings?.authPassword?.trim();
+
+                    const payload = {
+                        image_path: cleanPath,
+                        sentence: content,
+                        sentence_field: settings.ankiSentenceField,
+                        image_field: settings.ankiImageField,
+                        suwayomi_user: user || null,
+                        suwayomi_pass: pass || null
+                    };
+
+                    const response = await fetch('/api/anki/update-last-card', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    // 4. Handle Result
+                    if (response.ok) {
+                        closeDialog(); // Remove Spinner
+                        showAlert('Success', 'Anki card updated successfully!');
+                    } else {
+                        const errText = await response.text();
+                        closeDialog();
+                        showAlert('Anki Error', errText || 'Failed to update card.');
+                    }
+                } catch (err) {
+                    closeDialog();
+                    showAlert('Network Error', 'Could not reach Mangatan server.');
+                }
+            }
+        );
+    };
 
     // FIX: HANDLE FIRST TAP (ACTIVATION)
     const handleTouchStart = (e: React.TouchEvent) => {
@@ -301,6 +368,12 @@ export const TextBox: React.FC<{
             contentEditable={isEditing}
             suppressContentEditableWarning
             onDoubleClick={() => setIsEditing(true)}
+            onContextMenu={(e) => {
+                // Check if user holds Shift or other logic if needed
+                if (settings.ankiConnectEnabled && !e.shiftKey) { 
+                    handleAnkiRequest(e);
+                }
+            }}
             onBlur={() => {
                 if (settings.mobileMode) return;
                 setIsEditing(false);
@@ -331,4 +404,4 @@ export const TextBox: React.FC<{
             {displayContent}
         </div>
     );
-    };
+};

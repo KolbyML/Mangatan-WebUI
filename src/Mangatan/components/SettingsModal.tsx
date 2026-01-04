@@ -160,6 +160,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     };
 
     const isNativeApp = typeof navigator !== 'undefined' && navigator.userAgent.includes('MangatanNative');
+    const isiOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     return (
         <div className="ocr-modal-overlay" onClick={onClose}>
@@ -264,6 +265,44 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         <label htmlFor="mergeKey">Merge Key</label>
                         <input id="mergeKey" value={localSettings.mergeModifierKey} onChange={(e) => handleChange('mergeModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
                     </div>
+
+                    {!isiOS && (
+                        <>
+                            <h3>Anki Integrations</h3>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.ankiConnectEnabled ?? false} onChange={(e) => handleChange('ankiConnectEnabled', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Enable Anki Integrations
+                                    <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
+                                        To trigger the anki connect integration, right click (long press on mobile) any text box
+                                    </div>
+                                </div>
+                            </label>
+                            <div className="grid">
+                                <label htmlFor="ankiSent" style={{ opacity: localSettings.ankiConnectEnabled ? 1 : 0.5 }}>
+                                    Sentence Field
+                                </label>
+                                <input 
+                                    id="ankiSent" 
+                                    disabled={!localSettings.ankiConnectEnabled}
+                                    value={localSettings.ankiSentenceField ?? 'Sentence'} 
+                                    onChange={(e) => handleChange('ankiSentenceField', e.target.value)} 
+                                    placeholder="Leave empty to skip"
+                                />
+
+                                <label htmlFor="ankiImg" style={{ opacity: localSettings.ankiConnectEnabled ? 1 : 0.5 }}>
+                                    Image Field
+                                </label>
+                                <input 
+                                    id="ankiImg" 
+                                    disabled={!localSettings.ankiConnectEnabled}
+                                    value={localSettings.ankiImageField ?? 'Image'} 
+                                    onChange={(e) => handleChange('ankiImageField', e.target.value)} 
+                                    placeholder="Leave empty to skip"
+                                />
+                            </div>
+                        </>
+                    )}
 
                     <div className="checkboxes">
                         <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />Enable Text Overlay</label>
