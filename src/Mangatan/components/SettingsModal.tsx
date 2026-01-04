@@ -266,6 +266,10 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     </div>
 
                     <h3>Anki Integrations</h3>
+                    <label style={checkboxLabelStyle}>
+                        <input type="checkbox" checked={localSettings.ankiConnectEnabled ?? false} onChange={(e) => handleChange('ankiConnectEnabled', e.target.checked)} style={checkboxInputStyle} />
+                        Enable Anki Integrations
+                    </label>
                     <div className="grid">
                         <label htmlFor="ankiSent" style={{ opacity: localSettings.ankiConnectEnabled ? 1 : 0.5 }}>
                             Sentence Field
@@ -275,7 +279,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             disabled={!localSettings.ankiConnectEnabled}
                             value={localSettings.ankiSentenceField ?? 'Sentence'} 
                             onChange={(e) => handleChange('ankiSentenceField', e.target.value)} 
-                            placeholder="e.g. Front, Sentence, Expression"
+                            placeholder="(Skip this field)"
                         />
 
                         <label htmlFor="ankiImg" style={{ opacity: localSettings.ankiConnectEnabled ? 1 : 0.5 }}>
@@ -286,17 +290,12 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             disabled={!localSettings.ankiConnectEnabled}
                             value={localSettings.ankiImageField ?? 'Image'} 
                             onChange={(e) => handleChange('ankiImageField', e.target.value)} 
-                            placeholder="e.g. Back, Image, Picture"
+                            placeholder="(Skip this field)"
                         />
                     </div>
 
                     <div className="checkboxes">
                         <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />Enable Text Overlay</label>
-
-                        <label style={checkboxLabelStyle}>
-                            <input type="checkbox" checked={localSettings.ankiConnectEnabled ?? false} onChange={(e) => handleChange('ankiConnectEnabled', e.target.checked)} style={checkboxInputStyle} />
-                            Enable Anki Integrations
-                        </label>
                         
                         <label style={checkboxLabelStyle}>
                             <input type="checkbox" checked={localSettings.enableYomitan} onChange={e => handleChange('enableYomitan', e.target.checked)} style={checkboxInputStyle} />
