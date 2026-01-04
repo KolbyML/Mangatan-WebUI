@@ -2,7 +2,7 @@
  * Copyright (C) Contributors to the Suwayomi project
  */
 
-body {
+ body {
     margin: 0;
 }
 
@@ -32,47 +32,95 @@ html.ocr-reader-mode body {
 /* --- TEXT BOX CARD STYLING --- */
 .gemini-ocr-text-box {
     position: absolute;
-    display: flex;
-    flex-direction: row; 
-    align-items: flex-start; 
-    justify-content: center; 
-    border-radius: 3px;
+    
+    /* CRITICAL FIX: FORCE BLOCK DISPLAY. 
+       We use !important to strictly override any flex behavior. */
+    display: block !important;
+    
+    /* Reset alignment for standard text flow */
+    text-align: center;
+    
+    /* Ensure the box fits the text tightly */
+    width: fit-content;
+    height: fit-content;
+    
+    /* Standard Styles */
     background-color: var(--ocr-bg);
     border: 1px solid #ccc;
+    border-radius: 3px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     color: var(--ocr-text-color);
+    padding: 4px;
+    
+    /* Font & Text Settings */
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 600;
+    line-height: 1.5; 
+    white-space: pre;  
+    overflow: visible; 
+    box-sizing: border-box; 
+    
+    /* Interactive Settings */
     cursor: text;
     user-select: text !important;
     pointer-events: auto !important;
-    font-family: 'Noto Sans JP', sans-serif;
-    font-weight: 600;
-    line-height: 1.1; 
-    text-align: center;
-    overflow: visible; 
-    white-space: pre;  
-    box-sizing: border-box; 
-    padding: 4px;
+    
+    /* FIX: Removed transform transition to prevent coordinate drift */
+    transition: opacity 0.2s;
+    opacity: 1; 
+    
+    /* Ensure minimum size for interaction */
     min-width: 20px;
     min-height: 20px;
-    transition: opacity 0.2s, transform 0.1s;
-    opacity: 1; 
 }
 
+/* FIX: iOS requires cursor: pointer to treat a div as a 'clickable' element instantly. */
+.mobile-mode .gemini-ocr-text-box {
+    cursor: pointer !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* FIX: Re-enable text selection only when the box is active (Blue) */
+.gemini-ocr-text-box.mobile-active {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+/* FIX: Vertical Mode Adjustment */
 .gemini-ocr-text-box.vertical {
     writing-mode: vertical-rl;
     text-orientation: upright;
-    justify-content: flex-start; 
-    align-items: center;         
+    
+    /* In vertical-rl, 'left' aligns text to the top of the column */
     text-align: left; 
+    
+    /* SAFETY: Ensure no flex properties linger */
+    align-items: unset !important;
+    justify-content: unset !important;
 }
 
-.gemini-ocr-text-box:hover {
-    z-index: 100000;
-    transform: scale(var(--ocr-scale));
-    border: 2px solid var(--ocr-accent);
-    padding: 3px; 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    opacity: 1 !important; 
+/* FIX: HOVER STATE (STABLE) */
+/* Wrapped in hover media query to prevent sticky hover states on mobile */
+@media (hover: hover) {
+    .gemini-ocr-text-box:hover {
+        z-index: 100000;
+        transform: none !important;
+        outline: 2px solid var(--ocr-accent);
+        border: 1px solid #ccc; 
+        padding: 4px;           
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        opacity: 1 !important; 
+    }
+}
+
+/* FIX: CUSTOM SELECTION COLOR
+   This styles the native browser highlight (window.getSelection) 
+   to match your app's theme. */
+.gemini-ocr-text-box::selection {
+    background: rgba(72, 144, 255, 0.4); 
+    color: inherit;
 }
 
 .gemini-ocr-text-box.editing {
@@ -83,17 +131,34 @@ html.ocr-reader-mode body {
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding: 4px;
-    justify-content: flex-start;
-    align-items: flex-start;
+    
+    /* Ensure editing mode also uses block display */
+    display: block !important;
     text-align: left;
+    
     opacity: 1 !important; 
+    user-select: text !important;
 }
 
 .gemini-ocr-text-box.editing::-webkit-scrollbar { display: none; }
 .gemini-ocr-text-box.merge-target { outline: 3px solid #f1c40f; z-index: 100000; opacity: 1 !important; }
 
+/* SOLO MODE LOGIC */
 .ocr-overlay-container.solo-mode .gemini-ocr-text-box { opacity: 0; }
 .ocr-overlay-container.solo-mode .gemini-ocr-text-box:hover { opacity: 1 !important; }
+
+/* CRITICAL FIX: PREVENT FLASHING ON MOBILE
+   When in solo-mode, if a box is ACTIVE (Blue), force it to stay visible (Opacity 1). */
+.ocr-overlay-container.solo-mode .gemini-ocr-text-box.mobile-active {
+    opacity: 1 !important;
+}
+
+/* NEW FIX: PREVENT FLASHING ON DESKTOP
+   If the dictionary is open and this box is the active target, force visibility.
+   This fixes the issue where the backdrop covers the box, removing the hover state. */
+.ocr-overlay-container.solo-mode .gemini-ocr-text-box.active-lookup {
+    opacity: 1 !important;
+}
 
 /* --- SETTINGS MODAL STYLES --- */
 .ocr-modal-overlay { 
@@ -107,7 +172,6 @@ html.ocr-reader-mode body {
 .ocr-modal { 
     background: #1a1d21; color: #eaeaea; 
     width: 600px; max-width: 95vw; 
-    /* Fix for mobile height issues */
     max-height: 90vh; 
     display: flex; flex-direction: column;
     border: 1px solid var(--ocr-accent); 
@@ -125,7 +189,6 @@ html.ocr-reader-mode body {
     justify-content: flex-end; 
     gap: 10px; 
     flex-shrink: 0;
-    /* FIX: Allow wrapping on mobile */
     flex-wrap: wrap; 
 }
 
@@ -149,11 +212,10 @@ html.ocr-reader-mode body {
 .ocr-modal-footer button.warning { background-color: #e67e22; border-color: #d35400; }
 .mobile-mode .gemini-ocr-text-box { transition: none !important; animation: none !important; }
 
-/* --- GLOBAL DIALOG STYLES (New) --- */
+/* --- GLOBAL DIALOG STYLES --- */
 .ocr-global-dialog-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.85);
-    /* Higher than Settings Modal (2147483647) */
     z-index: 2147483648; 
     display: flex; align-items: center; justify-content: center;
     padding: 20px;
@@ -194,7 +256,6 @@ html.ocr-reader-mode body {
 .ocr-dialog-btn-confirm { background: #27ae60; color: white; }
 .ocr-dialog-btn-cancel { background: #444; color: white; }
 
-/* Progress Spinner inside Dialog */
 .ocr-dialog-spinner {
     border: 4px solid #444;
     border-top: 4px solid var(--ocr-accent);

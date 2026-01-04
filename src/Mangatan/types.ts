@@ -56,6 +56,7 @@ export interface DictionaryResult {
     definitions: DictionaryDefinition[];
     forms?: { headword: string; reading: string }[];
     source?: number;
+    matchLen?: number; // Added to support highlighting
 }
 
 export interface DictionaryDefinition {
@@ -71,6 +72,13 @@ export interface DictPopupState {
     results: DictionaryResult[];
     isLoading: boolean;
     systemLoading?: boolean;
+    // Added for highlighting
+    highlight?: {
+        imgSrc: string;
+        index: number;
+        startChar: number;
+        length: number;
+    }
 }
 
 // --- GLOBAL DIALOG STATE ---
@@ -87,9 +95,7 @@ export interface DialogState {
 const isBrowser = typeof navigator !== 'undefined';
 const ua = isBrowser ? navigator.userAgent : '';
 
-// 1. Check for the custom identifier injected by WebviewActivity.java
 const isAndroidNative = ua.includes('MangatanNative');
-// 2. Check for iOS/iPad devices
 const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
 const ENABLE_YOMITAN_DEFAULT = isAndroidNative || isIOS;

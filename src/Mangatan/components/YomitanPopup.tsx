@@ -45,7 +45,6 @@ const ContentNode: React.FC<{ node: any }> = ({ node }) => {
     }
 };
 
-// 修正: tagStyleを外に出してスコープを確保
 const tagStyle: React.CSSProperties = {
     display: 'inline-block', padding: '1px 5px', borderRadius: '3px',
     fontSize: '0.75em', fontWeight: 'bold', marginRight: '6px',
@@ -53,7 +52,7 @@ const tagStyle: React.CSSProperties = {
 };
 
 export const YomitanPopup = () => {
-    const { dictPopup, setDictPopup } = useOCR();
+    const { dictPopup, setDictPopup, notifyPopupClosed } = useOCR();
     const popupRef = useRef<HTMLDivElement>(null);
     const backdropRef = useRef<HTMLDivElement>(null);
     const [posStyle, setPosStyle] = useState<React.CSSProperties>({});
@@ -77,28 +76,51 @@ export const YomitanPopup = () => {
         const el = backdropRef.current;
         if (!el || !dictPopup.visible) return;
 
-        const killEvent = (e: Event) => {
-            if (e.cancelable) e.preventDefault(); 
-            e.stopPropagation();           
-            e.stopImmediatePropagation();  
-            
+        // --- CLOSING LOGIC ---
+        const closePopup = () => {
+            notifyPopupClosed();
             setDictPopup(prev => ({ ...prev, visible: false }));
         };
 
+        // --- MOBILE HANDLERS ---
+        // CRITICAL FIX: preventDefault on touchstart kills the browser's 
+        // emulation of mousedown/click events. This stops the "Ghost Click"
+        // from bubbling up to the Text Box.
+        const onTouchStart = (e: TouchEvent) => {
+            if (e.cancelable) e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const onTouchEnd = (e: TouchEvent) => {
+            if (e.cancelable) e.preventDefault();
+            e.stopPropagation();
+            closePopup();
+        };
+
+        // --- DESKTOP HANDLER ---
+        const onClick = (e: MouseEvent) => {
+            e.stopPropagation();
+            closePopup();
+        };
+
+        const onBlock = (e: Event) => e.stopPropagation();
+
         const opts = { passive: false };
 
-        el.addEventListener('touchstart', killEvent, opts);
-        el.addEventListener('mousedown', killEvent, opts);
-        el.addEventListener('click', killEvent, opts);
-        el.addEventListener('contextmenu', killEvent, opts);
+        el.addEventListener('touchstart', onTouchStart, opts);
+        el.addEventListener('touchend', onTouchEnd, opts);
+        el.addEventListener('click', onClick, opts);
+        el.addEventListener('mousedown', onBlock, opts);
+        el.addEventListener('contextmenu', onClick, opts);
 
         return () => {
-            el.removeEventListener('touchstart', killEvent, opts as any);
-            el.removeEventListener('mousedown', killEvent, opts as any);
-            el.removeEventListener('click', killEvent, opts as any);
-            el.removeEventListener('contextmenu', killEvent, opts as any);
+            el.removeEventListener('touchstart', onTouchStart, opts as any);
+            el.removeEventListener('touchend', onTouchEnd, opts as any);
+            el.removeEventListener('click', onClick, opts as any);
+            el.removeEventListener('mousedown', onBlock, opts as any);
+            el.removeEventListener('contextmenu', onClick, opts as any);
         };
-    }, [dictPopup.visible, setDictPopup]);
+    }, [dictPopup.visible, setDictPopup, notifyPopupClosed]);
 
     if (!dictPopup.visible) return null;
 
@@ -114,18 +136,20 @@ export const YomitanPopup = () => {
         <>
             <div 
                 ref={backdropRef}
+                className="yomitan-backdrop"
                 style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    zIndex: 99998, 
+                    zIndex: 2147483646, 
                     cursor: 'default',
                     outline: 'none',
                     backgroundColor: 'transparent',
-                    touchAction: 'none',
+                    touchAction: 'none', // Prevents scrolling/zooming gestures on backdrop
                 }}
             />
 
             <div 
                 ref={popupRef} 
+                className="yomitan-popup"
                 style={popupStyle} 
                 onMouseDown={e => e.stopPropagation()}
                 onTouchStart={e => e.stopPropagation()}

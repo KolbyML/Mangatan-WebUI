@@ -42,15 +42,24 @@ export const TextBox: React.FC<{
         mergeAnchor, 
         setMergeAnchor, 
         setDictPopup,
-        showConfirm,    // <--- Add this
-        showProgress,   // <--- Add this
-        showAlert,      // <--- Add this
-        closeDialog     // <--- Add this
+        dictPopup,
+        wasPopupClosedRecently,
+        showConfirm,
+        showProgress,
+        showAlert,
+        closeDialog
     } = useOCR();
     const [isEditing, setIsEditing] = useState(false);
     const [isActive, setIsActive] = useState(false); 
     const [fontSize, setFontSize] = useState(16);
     const ref = useRef<HTMLDivElement>(null);
+
+    // FIX: Track if we just activated the box to prevent "1-click" lookup on Android
+    const justActivated = useRef(false);
+
+    // Track popup state via ref to access inside event listeners safely
+    const dictPopupRef = useRef(dictPopup.visible);
+    useEffect(() => { dictPopupRef.current = dictPopup.visible; }, [dictPopup.visible]);
 
     const isVertical =
         block.forcedOrientation === 'vertical' ||
@@ -77,21 +86,69 @@ export const TextBox: React.FC<{
     let displayContent = isEditing ? block.text : cleanPunctuation(block.text, settings.addSpaceOnMerge);
     displayContent = displayContent.replace(/\u200B/g, '\n');
 
+    // --- NATIVE SELECTION HANDLER ---
+    useLayoutEffect(() => {
+        const selection = window.getSelection();
+        if (!selection) return;
+
+        // Explicitly clear selection when popup closes to remove the highlight pins/color
+        if (!dictPopup.visible) {
+            // Only clear selection if WE are the active box
+            if (isActive) selection.removeAllRanges();
+            return;
+        }
+
+        const highlight = dictPopup.highlight;
+        if (!highlight || highlight.imgSrc !== imgSrc || highlight.index !== index) {
+            return;
+        }
+
+        const node = ref.current?.firstChild;
+
+        if (node && node.nodeType === Node.TEXT_NODE) {
+            try {
+                const range = document.createRange();
+                const start = Math.max(0, Math.min(highlight.startChar, node.textContent?.length || 0));
+                const end = Math.max(0, Math.min(start + highlight.length, node.textContent?.length || 0));
+                
+                range.setStart(node, start);
+                range.setEnd(node, end);
+                
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } catch (e) {
+                // Silently fail
+            }
+        }
+    }, [dictPopup.visible, dictPopup.highlight, imgSrc, index, displayContent, isActive]);
+
+    // --- GLOBAL CLICK LISTENER ---
     useEffect(() => {
         if (!isActive || !settings.mobileMode) return;
+        
         const handleGlobalClick = (e: MouseEvent | TouchEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
+            const target = e.target as Element;
+
+            // If popup is open or was just closed, ignore this click to prevent closing the text box
+            if (dictPopupRef.current || wasPopupClosedRecently()) return;
+
+            if (target && (target.closest('.yomitan-popup') || target.closest('.yomitan-backdrop'))) {
+                return; 
+            }
+
+            if (ref.current && !ref.current.contains(target as Node)) {
                 setIsActive(false);
                 setIsEditing(false);
             }
         };
+
         document.addEventListener('touchstart', handleGlobalClick);
         document.addEventListener('mousedown', handleGlobalClick);
         return () => {
             document.removeEventListener('touchstart', handleGlobalClick);
             document.removeEventListener('mousedown', handleGlobalClick);
         };
-    }, [isActive, settings.mobileMode]);
+    }, [isActive, settings.mobileMode, wasPopupClosedRecently]);
 
     useEffect(() => {
         if (!isActive && !isEditing && settings.mobileMode) {
@@ -152,9 +209,24 @@ export const TextBox: React.FC<{
         );
     };
 
+    // FIX: HANDLE FIRST TAP (ACTIVATION)
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (!settings.mobileMode) return;
+        
+        if (!isActive) {
+            setIsActive(true);
+            
+            // Set flag to block the subsequent click event from triggering lookup
+            justActivated.current = true;
+            setTimeout(() => justActivated.current = false, 500);
+
+            if (e.cancelable) e.preventDefault();
+        }
+    };
+
     const handleInteract = async (e: React.MouseEvent) => {
         const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) return;
+        if (selection && !selection.isCollapsed && !dictPopup.visible) return;
 
         if (isEditing) return;
         e.stopPropagation();
@@ -174,17 +246,20 @@ export const TextBox: React.FC<{
                 setMergeAnchor(null);
             }
         } else {
-            if (settings.mobileMode && !isActive) {
-                e.preventDefault(); 
-                setIsActive(true);
-                if (ref.current) ref.current.focus();
+            // FIX: ANDROID 2-CLICK GUARD
+            // If we just activated this box (via touchStart), OR if isActive is somehow false,
+            // STOP here. Do not lookup.
+            if (settings.mobileMode && (justActivated.current || !isActive)) {
+                if (!isActive) setIsActive(true);
                 return;
             }
 
             if (!settings.enableYomitan) return;
 
+            // --- YOMITAN LOOKUP ---
             let charOffset = 0;
             let range: Range | null = null;
+            
             if (document.caretRangeFromPoint) {
                 range = document.caretRangeFromPoint(e.clientX, e.clientY);
                 if (range) charOffset = range.startOffset;
@@ -222,7 +297,8 @@ export const TextBox: React.FC<{
                 y: e.clientY,
                 results: [],
                 isLoading: true,
-                systemLoading: false
+                systemLoading: false,
+                highlight: undefined 
             });
 
             const results = await lookupYomitan(content, byteIndex);
@@ -230,7 +306,20 @@ export const TextBox: React.FC<{
             if (results === 'loading') {
                  setDictPopup(prev => ({ ...prev, results: [], isLoading: false, systemLoading: true }));
             } else {
-                setDictPopup(prev => ({ ...prev, results: results, isLoading: false, systemLoading: false }));
+                const matchLen = (results && results.length > 0 && results[0].matchLen) ? results[0].matchLen : 1;
+                
+                setDictPopup(prev => ({ 
+                    ...prev, 
+                    results: results, 
+                    isLoading: false, 
+                    systemLoading: false,
+                    highlight: {
+                        imgSrc,
+                        index,
+                        startChar: charOffset,
+                        length: matchLen
+                    }
+                }));
             }
         }
     };
@@ -249,19 +338,25 @@ export const TextBox: React.FC<{
 
     const isMergedTarget = mergeAnchor?.imgSrc === imgSrc && mergeAnchor?.index === index;
 
+    // Check if this box is the one currently being looked up
+    const isLookingUp = dictPopup.visible && 
+                        dictPopup.highlight?.imgSrc === imgSrc && 
+                        dictPopup.highlight?.index === index;
+
     const classes = [
         'gemini-ocr-text-box',
         isVertical ? 'vertical' : '',
         isEditing ? 'editing' : '',
         isMergedTarget ? 'merge-target' : '',
-        isActive ? 'mobile-active' : ''
+        isActive ? 'mobile-active' : '',
+        isLookingUp ? 'active-lookup' : '' // FIX: Added class to force visibility
     ].filter(Boolean).join(' ');
 
     return (
         <div
             ref={ref}
             role="button"
-            tabIndex={0}
+            tabIndex={settings.mobileMode ? -1 : 0}
             onKeyDown={handleKeyDown}
             className={classes}
             contentEditable={isEditing}
@@ -281,21 +376,22 @@ export const TextBox: React.FC<{
                 if (raw !== displayContent) onUpdate(index, raw.replace(/\n/g, '\u200B'));
             }}
             onClick={handleInteract}
+            onTouchStart={handleTouchStart}
             style={{
                 left: `calc(${block.tightBoundingBox.x * 100}% - ${adj / 2}px)`,
                 top: `calc(${block.tightBoundingBox.y * 100}% - ${adj / 2}px)`,
-                width: `calc(${block.tightBoundingBox.width * 100}% + ${adj}px)`,
-                height: `calc(${block.tightBoundingBox.height * 100}% + ${adj}px)`,
+                minWidth: `calc(${block.tightBoundingBox.width * 100}% + ${adj}px)`,
+                minHeight: `calc(${block.tightBoundingBox.height * 100}% + ${adj}px)`,
+                width: 'fit-content',
+                height: 'fit-content',
                 fontSize: `${fontSize}px`,
                 color: settings.focusFontColor === 'difference' ? 'white' : 'var(--ocr-text-color)',
                 mixBlendMode: settings.focusFontColor === 'difference' ? 'difference' : 'normal',
-                // This is critical for properly displaying the backend's newlines
-                whiteSpace: 'pre', 
-                overflow: isEditing ? 'auto' : 'hidden', 
+                whiteSpace: 'pre',
+                overflow: isEditing ? 'auto' : 'visible', 
                 touchAction: 'pan-y', 
                 backgroundColor: isActive ? activeBgColor : bgColor,
                 outline: isActive ? '2px solid var(--ocr-accent, #4890ff)' : 'none',
-                // Increased line-height for vertical text to prevent columns from touching
                 lineHeight: isVertical ? '1.5' : '1.1',
             }}
         >
