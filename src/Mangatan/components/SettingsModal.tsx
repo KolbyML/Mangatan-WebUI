@@ -268,39 +268,77 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
                     {!isiOS && (
                         <>
-                            <h3>Anki Integrations</h3>
+                            <h3>AnkiConnect Integration</h3>
+                            
                             <label style={checkboxLabelStyle}>
-                                <input type="checkbox" checked={localSettings.ankiConnectEnabled ?? false} onChange={(e) => handleChange('ankiConnectEnabled', e.target.checked)} style={checkboxInputStyle} />
+                                <input 
+                                    type="checkbox" 
+                                    checked={localSettings.ankiConnectEnabled ?? false} 
+                                    onChange={(e) => handleChange('ankiConnectEnabled', e.target.checked)} 
+                                    style={checkboxInputStyle} 
+                                />
                                 <div>
-                                    Enable Anki Integrations
+                                    Enable AnkiConnect
                                     <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
-                                        To trigger the anki connect integration, right click (long press on mobile) any text box
+                                        Right-click (long press on mobile) any text box to update the last Anki card
                                     </div>
                                 </div>
                             </label>
-                            <div className="grid">
-                                <label htmlFor="ankiSent" style={{ opacity: localSettings.ankiConnectEnabled ? 1 : 0.5 }}>
-                                    Sentence Field
-                                </label>
-                                <input 
-                                    id="ankiSent" 
-                                    disabled={!localSettings.ankiConnectEnabled}
-                                    value={localSettings.ankiSentenceField ?? 'Sentence'} 
-                                    onChange={(e) => handleChange('ankiSentenceField', e.target.value)} 
-                                    placeholder="Leave empty to skip"
-                                />
 
-                                <label htmlFor="ankiImg" style={{ opacity: localSettings.ankiConnectEnabled ? 1 : 0.5 }}>
-                                    Image Field
-                                </label>
+                            <label style={checkboxLabelStyle}>
                                 <input 
-                                    id="ankiImg" 
-                                    disabled={!localSettings.ankiConnectEnabled}
-                                    value={localSettings.ankiImageField ?? 'Image'} 
-                                    onChange={(e) => handleChange('ankiImageField', e.target.value)} 
-                                    placeholder="Leave empty to skip"
+                                    type="checkbox" 
+                                    checked={localSettings.ankiEnableCropper ?? false} 
+                                    onChange={(e) => handleChange('ankiEnableCropper', e.target.checked)} 
+                                    style={checkboxInputStyle} 
                                 />
-                            </div>
+                                <div>
+                                    Enable Image Cropper
+                                    <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
+                                        Allows you to crop the image before sending to Anki
+                                    </div>
+                                </div>
+                            </label>
+
+                            {localSettings.ankiConnectEnabled && (
+                                <div className="grid">
+                                    <label htmlFor="ankiUrl">AnkiConnect URL</label>
+                                    <input 
+                                        id="ankiUrl" 
+                                        value={localSettings.ankiConnectUrl ?? 'http://127.0.0.1:8765'} 
+                                        onChange={(e) => handleChange('ankiConnectUrl', e.target.value)} 
+                                        placeholder="http://127.0.0.1:8765"
+                                    />
+
+                                    <label htmlFor="ankiSent">Sentence Field</label>
+                                    <input 
+                                        id="ankiSent" 
+                                        value={localSettings.ankiSentenceField ?? ''} 
+                                        onChange={(e) => handleChange('ankiSentenceField', e.target.value)} 
+                                        placeholder="Leave empty to skip"
+                                    />
+
+                                    <label htmlFor="ankiImg">Picture Field</label>
+                                    <input 
+                                        id="ankiImg" 
+                                        value={localSettings.ankiImageField ?? ''} 
+                                        onChange={(e) => handleChange('ankiImageField', e.target.value)} 
+                                        placeholder="Leave empty to skip"
+                                    />
+
+                                    <label htmlFor="ankiQuality">Image Quality</label>
+                                    <input 
+                                        id="ankiQuality" 
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        value={localSettings.ankiImageQuality ?? 0.92} 
+                                        onChange={(e) => handleChange('ankiImageQuality', parseFloat(e.target.value))} 
+                                        placeholder="0.92"
+                                    />
+                                </div>
+                            )}
                         </>
                     )}
 

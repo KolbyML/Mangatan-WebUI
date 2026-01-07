@@ -2,6 +2,8 @@ import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import { OcrBlock } from '@/Mangatan/types';
 import { useOCR } from '@/Mangatan/context/OCRContext';
 import { cleanPunctuation, lookupYomitan } from '@/Mangatan/utils/api';
+import { createCard, updateLastCard, imageUrlToBase64Webp } from '@/Mangatan/utils/anki';
+import { CropperModal } from '@/Mangatan/components/CropperModal';
 
 const calculateFontSize = (text: string, w: number, h: number, isVertical: boolean, settings: any) => {
     const lines = text.split('\n');
@@ -53,6 +55,7 @@ export const TextBox: React.FC<{
     const [isEditing, setIsEditing] = useState(false);
     const [isActive, setIsActive] = useState(false); 
     const [fontSize, setFontSize] = useState(16);
+    const [showCropper, setShowCropper] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
     // FIX: Track if we just activated the box to prevent "1-click" lookup on Android
@@ -160,57 +163,137 @@ export const TextBox: React.FC<{
         }
     }, [isActive, isEditing, settings.mobileMode, index, onUpdate, displayContent]);
 
-    const handleAnkiRequest = (e: React.MouseEvent) => {
-        // Prevent default browser menu
+    const handleAnkiRequest = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
 
-        // Prepare the text
+        if (!settings.ankiConnectEnabled) {
+            showAlert('Anki Disabled', 'AnkiConnect integration is disabled in settings.');
+            return;
+        }
+
         let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
         content = content.replace(/\u200B/g, '\n');
 
-        const cleanPath = imgSrc.replace(/^https?:\/\/[^\/]+/, '');
+        if (settings.ankiEnableCropper) {
+            // Show cropper modal
+            setShowCropper(true);
+        } else {
+            // Direct update without cropper
+            showConfirm(
+                'Update Anki Card?',
+                'This will overwrite the image and text of the last added card in Anki.',
+                async () => {
+                    try {
+                        showProgress('Updating Anki card...');
 
-        // 2. Trigger the Confirmation Dialog
+                        const { updateLastCard } = await import('@/Mangatan/utils/anki');
+
+                        await updateLastCard(
+                            settings.ankiConnectUrl || 'http://127.0.0.1:8765',
+                            imgSrc,
+                            content,
+                            settings.ankiImageField || '',
+                            settings.ankiSentenceField || '',
+                            settings.ankiImageQuality || 0.92
+                        );
+                        
+                        closeDialog();
+                        showAlert('Success', 'Anki card updated successfully!');
+
+                    } catch (err: any) {
+                        closeDialog();
+                        showAlert('Anki Error', err.message || 'Failed to update Anki card');
+                    }
+                }
+            );
+        }
+    };
+
+    const handleCropperComplete = async (croppedImage: string) => {
+        setShowCropper(false);
+
+        let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
+        content = content.replace(/\u200B/g, '\n');
+
         showConfirm(
-            'Update Anki Card?', // Title
-            'This will overwrite the image and text of the last added card in Anki.', // Message
+            'Update Anki Card?',
+            'This will overwrite the image and text of the last added card in Anki.',
             async () => {
                 try {
-                    // 3. Show Loading Spinner
-                    showProgress('Sending to Anki...');
+                    showProgress('Updating Anki card...');
 
-                    // Prepare credentials if they exist
-                    const user = serverSettings?.authUsername?.trim();
-                    const pass = serverSettings?.authPassword?.trim();
+                    // Manually construct the update since we already have the cropped image
+                    const id = await (async () => {
+                        const ankiConnectUrl = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+                        const res = await fetch(ankiConnectUrl, {
+                            method: 'POST',
+                            body: JSON.stringify({ 
+                                action: 'findNotes', 
+                                params: { query: 'added:1' }, 
+                                version: 6 
+                            })
+                        });
+                        const json = await res.json();
+                        if (!json.result || !Array.isArray(json.result)) return undefined;
+                        return json.result.sort().at(-1);
+                    })();
 
-                    const payload = {
-                        image_path: cleanPath,
-                        sentence: content,
-                        sentence_field: settings.ankiSentenceField,
-                        image_field: settings.ankiImageField,
-                        suwayomi_user: user || null,
-                        suwayomi_pass: pass || null
+                    if (!id) {
+                        throw new Error('Could not find recent card (no cards created today)');
+                    }
+
+                    const cardAge = Math.floor((Date.now() - id) / 60000);
+                    if (cardAge >= 5) {
+                        throw new Error('Card created over 5 minutes ago');
+                    }
+
+                    const fields: Record<string, any> = {};
+                    const updatePayload: any = {
+                        note: {
+                            id,
+                            fields
+                        }
                     };
 
-                    const response = await fetch('/api/anki/update-last-card', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    // 4. Handle Result
-                    if (response.ok) {
-                        closeDialog(); // Remove Spinner
-                        showAlert('Success', 'Anki card updated successfully!');
-                    } else {
-                        const errText = await response.text();
-                        closeDialog();
-                        showAlert('Anki Error', errText || 'Failed to update card.');
+                    // Handle sentence field
+                    if (settings.ankiSentenceField && settings.ankiSentenceField.trim() && content) {
+                        fields[settings.ankiSentenceField] = content;
                     }
-                } catch (err) {
+
+                    // Handle picture field with cropped image
+                    if (settings.ankiImageField && settings.ankiImageField.trim()) {
+                        fields[settings.ankiImageField] = '';
+
+                        updatePayload.note.picture = {
+                            filename: `mangatan_${id}.webp`,
+                            data: croppedImage.split(';base64,')[1],
+                            fields: [settings.ankiImageField]
+                        };
+                    }
+
+                    // Make the request
+                    const ankiConnectUrl = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+                    const res = await fetch(ankiConnectUrl, {
+                        method: 'POST',
+                        body: JSON.stringify({ 
+                            action: 'updateNoteFields', 
+                            params: updatePayload, 
+                            version: 6 
+                        })
+                    });
+                    const json = await res.json();
+
+                    if (json.error) {
+                        throw new Error(json.error);
+                    }
+                    
                     closeDialog();
-                    showAlert('Network Error', 'Could not reach Mangatan server.');
+                    showAlert('Success', 'Anki card updated successfully!');
+
+                } catch (err: any) {
+                    closeDialog();
+                    showAlert('Anki Error', err.message || 'Failed to update Anki card');
                 }
             }
         );
@@ -360,49 +443,60 @@ export const TextBox: React.FC<{
     ].filter(Boolean).join(' ');
 
     return (
-        <div
-            ref={ref}
-            role="button"
-            tabIndex={settings.mobileMode ? -1 : 0}
-            onKeyDown={handleKeyDown}
-            className={classes}
-            contentEditable={isEditing}
-            suppressContentEditableWarning
-            onDoubleClick={() => setIsEditing(true)}
-            onContextMenu={(e) => {
-                // Check if user holds Shift or other logic if needed
-                if (settings.ankiConnectEnabled && !e.shiftKey) { 
-                    handleAnkiRequest(e);
-                }
-            }}
-            onBlur={() => {
-                if (settings.mobileMode) return;
-                setIsEditing(false);
-                setIsActive(false); 
-                const raw = ref.current?.innerText || '';
-                if (raw !== displayContent) onUpdate(index, raw.replace(/\n/g, '\u200B'));
-            }}
-            onClick={handleInteract}
-            onTouchStart={handleTouchStart}
-            style={{
-                left: `calc(${block.tightBoundingBox.x * 100}% - ${adj / 2}px)`,
-                top: `calc(${block.tightBoundingBox.y * 100}% - ${adj / 2}px)`,
-                minWidth: `calc(${block.tightBoundingBox.width * 100}% + ${adj}px)`,
-                minHeight: `calc(${block.tightBoundingBox.height * 100}% + ${adj}px)`,
-                width: 'fit-content',
-                height: 'fit-content',
-                fontSize: `${fontSize}px`,
-                color: settings.focusFontColor === 'difference' ? 'white' : 'var(--ocr-text-color)',
-                mixBlendMode: settings.focusFontColor === 'difference' ? 'difference' : 'normal',
-                whiteSpace: 'pre',
-                overflow: isEditing ? 'auto' : 'visible', 
-                touchAction: 'pan-y', 
-                backgroundColor: isActive ? activeBgColor : bgColor,
-                outline: isActive ? '2px solid var(--ocr-accent, #4890ff)' : 'none',
-                lineHeight: isVertical ? '1.5' : '1.1',
-            }}
-        >
-            {displayContent}
-        </div>
+        <>
+            <div
+                ref={ref}
+                role="button"
+                tabIndex={settings.mobileMode ? -1 : 0}
+                onKeyDown={handleKeyDown}
+                className={classes}
+                contentEditable={isEditing}
+                suppressContentEditableWarning
+                onDoubleClick={() => setIsEditing(true)}
+                onContextMenu={(e) => {
+                    // Check if user holds Shift or other logic if needed
+                    if (settings.ankiConnectEnabled && !e.shiftKey) { 
+                        handleAnkiRequest(e);
+                    }
+                }}
+                onBlur={() => {
+                    if (settings.mobileMode) return;
+                    setIsEditing(false);
+                    setIsActive(false); 
+                    const raw = ref.current?.innerText || '';
+                    if (raw !== displayContent) onUpdate(index, raw.replace(/\n/g, '\u200B'));
+                }}
+                onClick={handleInteract}
+                onTouchStart={handleTouchStart}
+                style={{
+                    left: `calc(${block.tightBoundingBox.x * 100}% - ${adj / 2}px)`,
+                    top: `calc(${block.tightBoundingBox.y * 100}% - ${adj / 2}px)`,
+                    minWidth: `calc(${block.tightBoundingBox.width * 100}% + ${adj}px)`,
+                    minHeight: `calc(${block.tightBoundingBox.height * 100}% + ${adj}px)`,
+                    width: 'fit-content',
+                    height: 'fit-content',
+                    fontSize: `${fontSize}px`,
+                    color: settings.focusFontColor === 'difference' ? 'white' : 'var(--ocr-text-color)',
+                    mixBlendMode: settings.focusFontColor === 'difference' ? 'difference' : 'normal',
+                    whiteSpace: 'pre',
+                    overflow: isEditing ? 'auto' : 'visible', 
+                    touchAction: 'pan-y', 
+                    backgroundColor: isActive ? activeBgColor : bgColor,
+                    outline: isActive ? '2px solid var(--ocr-accent, #4890ff)' : 'none',
+                    lineHeight: isVertical ? '1.5' : '1.1',
+                }}
+            >
+                {displayContent}
+            </div>
+
+            {showCropper && (
+                <CropperModal
+                    imageSrc={imgSrc}
+                    onComplete={handleCropperComplete}
+                    onCancel={() => setShowCropper(false)}
+                    quality={settings.ankiImageQuality || 0.92}
+                />
+            )}
+        </>
     );
 };
