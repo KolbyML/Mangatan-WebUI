@@ -3,6 +3,7 @@ import { useOCR } from '@/Mangatan/context/OCRContext';
 import { COLOR_THEMES, DEFAULT_SETTINGS } from '@/Mangatan/types';
 import { apiRequest, getAppVersion, checkForUpdates, triggerAppUpdate, installAppUpdate } from '@/Mangatan/utils/api';
 import { DictionaryManager } from './DictionaryManager';
+import { getAnkiVersion, getDeckNames, getModelNames, getModelFields } from '@/Mangatan/utils/anki';
 
 const checkboxLabelStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', marginBottom: '8px', cursor: 'pointer', textAlign: 'left', 
@@ -20,11 +21,29 @@ const sectionBoxStyle: React.CSSProperties = {
     marginBottom: '20px'
 };
 
+const statusDotStyle = (connected: boolean): React.CSSProperties => ({
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+    backgroundColor: connected ? '#2ecc71' : '#e74c3c',
+    display: 'inline-block',
+    marginRight: '8px',
+    boxShadow: connected ? '0 0 5px #2ecc71' : 'none'
+});
+
+const MAPPING_OPTIONS = ['None', 'Sentence', 'Image', 'Furigana', 'Target Word', 'Definition'];
+
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { settings, setSettings, showConfirm, showAlert, showProgress, closeDialog, showDialog } = useOCR();
     const [localSettings, setLocalSettings] = useState(settings);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dictManagerKey, setDictManagerKey] = useState(0);
+
+    // --- ANKI STATE ---
+    const [ankiStatus, setAnkiStatus] = useState<'idle' | 'loading' | 'connected' | 'error'>('idle');
+    const [ankiDecks, setAnkiDecks] = useState<string[]>([]);
+    const [ankiModels, setAnkiModels] = useState<string[]>([]);
+    const [currentModelFields, setCurrentModelFields] = useState<string[]>([]);
 
     // --- DICT INSTALL STATE ---
     const [isInstalling, setIsInstalling] = useState(false);
@@ -34,6 +53,52 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const [appVersion, setAppVersion] = useState<string>('...');
     const [updateAvailable, setUpdateAvailable] = useState<any>(null);
     const [updateStatus, setUpdateStatus] = useState<string>('idle');
+
+    // --- ANKI EFFECT ---
+    const fetchAnkiData = async () => {
+        if (!localSettings.ankiConnectEnabled) return;
+        
+        const url = localSettings.ankiConnectUrl || 'http://127.0.0.1:8765';
+        setAnkiStatus('loading');
+        
+        const status = await getAnkiVersion(url);
+        if (status.ok) {
+            setAnkiStatus('connected');
+            try {
+                const [d, m] = await Promise.all([
+                    getDeckNames(url),
+                    getModelNames(url)
+                ]);
+                setAnkiDecks(d);
+                setAnkiModels(m);
+            } catch (e) {
+                console.error("Failed to fetch anki metadata", e);
+            }
+        } else {
+            setAnkiStatus('error');
+        }
+    };
+
+    useEffect(() => {
+        if (localSettings.ankiConnectEnabled) {
+            fetchAnkiData();
+        }
+    }, [localSettings.ankiConnectEnabled]); // Run on enable
+
+    // Fetch fields when model changes or when connection is established with a pre-selected model
+    useEffect(() => {
+        const fetchFields = async () => {
+             const url = localSettings.ankiConnectUrl || 'http://127.0.0.1:8765';
+             if (ankiStatus === 'connected' && localSettings.ankiModel) {
+                 try {
+                     const f = await getModelFields(url, localSettings.ankiModel);
+                     setCurrentModelFields(f);
+                 } catch(e) { console.error(e); }
+             }
+        };
+        fetchFields();
+    }, [localSettings.ankiModel, ankiStatus]);
+
 
     // --- POLL STATUS ---
     useEffect(() => {
@@ -95,12 +160,10 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     };
 
     // --- SETTINGS LOGIC ---
-    const handleChange = async (key: keyof typeof settings, value: any) => {
-        // Update local state immediately for responsiveness
+    const handleChange = async (key: keyof typeof settings | string, value: any) => {
         setLocalSettings((prev) => ({ ...prev, [key]: value }));
 
         if (key === 'enableYomitan' && value === true) {
-             // Perform install check in background (inline) instead of blocking GlobalDialog
              try {
                 setIsInstalling(true);
                 setInstallMessage('Checking dictionaries...');
@@ -108,7 +171,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 const res = await apiRequest<{status: string, message: string}>('/api/yomitan/install-defaults', { method: 'POST' });
                 
                 if (res.status === 'ok' && res.message.includes('Imported')) {
-                    // Force refresh of the manager list
                     setDictManagerKey(prev => prev + 1);
                 }
             } catch (e) { 
@@ -118,6 +180,12 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 setInstallMessage('');
             }
         }
+    };
+
+    const handleFieldMapChange = (ankiField: string, mapValue: string) => {
+        const currentMap = (localSettings.ankiFieldMap as Record<string, string>) || {};
+        const newMap = { ...currentMap, [ankiField]: mapValue };
+        handleChange('ankiFieldMap', newMap);
     };
 
     const save = () => {
@@ -243,7 +311,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             Enable Popup Dictionary
                         </label>
                         
-                        {/* Wrapper for smooth sliding transition */}
                         <div style={{
                             maxHeight: showDicts ? '800px' : '0px',
                             opacity: showDicts ? 1 : 0,
@@ -283,20 +350,62 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 <div>
                                     Enable AnkiConnect
                                     <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
-                                        Right-click (long press on mobile) any text box to update the last Anki card
+                                        Automatically add cards or update context
                                     </div>
                                 </div>
                             </label>
 
                             {/* Collapsible Anki Settings */}
                             <div style={{
-                                maxHeight: localSettings.ankiConnectEnabled ? '800px' : '0px',
+                                maxHeight: localSettings.ankiConnectEnabled ? '1200px' : '0px',
                                 opacity: localSettings.ankiConnectEnabled ? 1 : 0,
                                 overflow: 'hidden',
                                 transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out',
                             }}>
                                 <div style={{ marginTop: '10px', paddingLeft: '5px' }}>
-                                    <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                    {/* Connection Status & URL */}
+                                    <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                                        <div style={{display:'flex', alignItems:'center'}}>
+                                            <span style={statusDotStyle(ankiStatus === 'connected')}></span>
+                                            <span style={{color: ankiStatus === 'connected' ? '#2ecc71' : '#e74c3c', fontWeight: 'bold'}}>
+                                                {ankiStatus === 'connected' ? 'Connected' : ankiStatus === 'loading' ? 'Connecting...' : 'Not Connected'}
+                                            </span>
+                                        </div>
+                                        <button 
+                                            onClick={fetchAnkiData}
+                                            disabled={ankiStatus === 'loading'}
+                                            style={{
+                                                padding: '5px 10px', fontSize: '0.85em', cursor: 'pointer',
+                                                backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'
+                                            }}
+                                        >
+                                            Retry Connection
+                                        </button>
+                                    </div>
+
+                                    <div className="grid">
+                                        <label htmlFor="ankiUrl">AnkiConnect URL</label>
+                                        <input 
+                                            id="ankiUrl" 
+                                            value={localSettings.ankiConnectUrl ?? 'http://127.0.0.1:8765'} 
+                                            onChange={(e) => handleChange('ankiConnectUrl', e.target.value)} 
+                                            placeholder="http://127.0.0.1:8765"
+                                        />
+                                        
+                                        <label htmlFor="ankiQuality">Image Quality</label>
+                                        <input 
+                                            id="ankiQuality" 
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="1"
+                                            value={localSettings.ankiImageQuality ?? 0.92} 
+                                            onChange={(e) => handleChange('ankiImageQuality', parseFloat(e.target.value))} 
+                                            placeholder="0.92"
+                                        />
+                                    </div>
+
+                                    <div style={{ marginBottom: '15px', marginTop: '10px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
                                         <label style={{ ...checkboxLabelStyle, marginBottom: '0' }}>
                                             <input 
                                                 type="checkbox" 
@@ -313,43 +422,67 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                         </label>
                                     </div>
 
-                                    <div className="grid">
-                                        <label htmlFor="ankiUrl">AnkiConnect URL</label>
-                                        <input 
-                                            id="ankiUrl" 
-                                            value={localSettings.ankiConnectUrl ?? 'http://127.0.0.1:8765'} 
-                                            onChange={(e) => handleChange('ankiConnectUrl', e.target.value)} 
-                                            placeholder="http://127.0.0.1:8765"
-                                        />
+                                    {/* Deck & Model Selection */}
+                                    {ankiStatus === 'connected' && (
+                                        <>
+                                            <div className="grid" style={{marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '15px'}}>
+                                                <label htmlFor="ankiDeck">Target Deck</label>
+                                                <select 
+                                                    id="ankiDeck"
+                                                    value={localSettings.ankiDeck || ''}
+                                                    onChange={e => handleChange('ankiDeck', e.target.value)}
+                                                >
+                                                    <option value="">Select a Deck...</option>
+                                                    {ankiDecks.map(d => <option key={d} value={d}>{d}</option>)}
+                                                </select>
 
-                                        <label htmlFor="ankiSent">Sentence Field</label>
-                                        <input 
-                                            id="ankiSent" 
-                                            value={localSettings.ankiSentenceField ?? ''} 
-                                            onChange={(e) => handleChange('ankiSentenceField', e.target.value)} 
-                                            placeholder="Leave empty to skip"
-                                        />
+                                                <label htmlFor="ankiModel">Card Type</label>
+                                                <select 
+                                                    id="ankiModel"
+                                                    value={localSettings.ankiModel || ''}
+                                                    onChange={e => handleChange('ankiModel', e.target.value)}
+                                                >
+                                                    <option value="">Select Card Type...</option>
+                                                    {ankiModels.map(m => <option key={m} value={m}>{m}</option>)}
+                                                </select>
+                                            </div>
 
-                                        <label htmlFor="ankiImg">Picture Field</label>
-                                        <input 
-                                            id="ankiImg" 
-                                            value={localSettings.ankiImageField ?? ''} 
-                                            onChange={(e) => handleChange('ankiImageField', e.target.value)} 
-                                            placeholder="Leave empty to skip"
-                                        />
-
-                                        <label htmlFor="ankiQuality">Image Quality</label>
-                                        <input 
-                                            id="ankiQuality" 
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            max="1"
-                                            value={localSettings.ankiImageQuality ?? 0.92} 
-                                            onChange={(e) => handleChange('ankiImageQuality', parseFloat(e.target.value))} 
-                                            placeholder="0.92"
-                                        />
-                                    </div>
+                                            {/* Field Mapping Table */}
+                                            {localSettings.ankiModel && currentModelFields.length > 0 && (
+                                                <div style={{ marginTop: '20px' }}>
+                                                    <h4 style={{marginBottom: '10px', color: '#ddd'}}>Field Mapping</h4>
+                                                    <div style={{overflowX: 'auto'}}>
+                                                        <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.9em'}}>
+                                                            <thead>
+                                                                <tr style={{borderBottom: '1px solid rgba(255,255,255,0.2)'}}>
+                                                                    <th style={{textAlign: 'left', padding: '8px', color: '#aaa'}}>Anki Field</th>
+                                                                    <th style={{textAlign: 'left', padding: '8px', color: '#aaa'}}>Content</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {currentModelFields.map(field => (
+                                                                    <tr key={field} style={{borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
+                                                                        <td style={{padding: '8px'}}>{field}</td>
+                                                                        <td style={{padding: '8px'}}>
+                                                                            <select
+                                                                                style={{width: '100%', padding: '4px', borderRadius: '4px', border: '1px solid #444', background: '#222', color: 'white'}}
+                                                                                value={(localSettings.ankiFieldMap as any)?.[field] || 'None'}
+                                                                                onChange={e => handleFieldMapChange(field, e.target.value)}
+                                                                            >
+                                                                                {MAPPING_OPTIONS.map(opt => (
+                                                                                    <option key={opt} value={opt}>{opt}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>

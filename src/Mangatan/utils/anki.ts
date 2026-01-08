@@ -1,12 +1,12 @@
 /**
- * Generic AnkiConnect API call
+ * Generic AnkiConnect API call with CORS permission handling
  */
 async function ankiConnect(
     action: string,
     params: Record<string, any>,
     url: string,
-) {
-    try {
+): Promise<any> {
+    const request = async () => {
         const res = await fetch(url, {
             method: "POST",
             body: JSON.stringify({ action, params, version: 6 }),
@@ -18,19 +18,77 @@ async function ankiConnect(
         }
 
         return json.result;
-    } catch (e: any) {
-        const errorMessage = e?.message ?? String(e);
+    };
 
-        if (
-            e instanceof TypeError && errorMessage.includes("Failed to fetch")
-        ) {
+    try {
+        return await request();
+    } catch (e: any) {
+        // If the request failed, it might be due to CORS/Permission. 
+        // We try to request permission specifically.
+        // AnkiConnect allows 'requestPermission' from any origin.
+        try {
+            console.log("Anki request failed, attempting to request permission...");
+            
+            // We use a raw fetch here to specifically hit the permission endpoint
+            const permRes = await fetch(url, {
+                method: "POST",
+                body: JSON.stringify({ action: "requestPermission", version: 6 }),
+            });
+            const permJson = await permRes.json();
+
+            // If permission was granted (or user clicked 'Yes' in the popup)
+            if (permJson.result && permJson.result.permission === 'granted') {
+                console.log("Anki permission granted, retrying original request...");
+                return await request();
+            }
+        } catch (permError) {
+            // If requesting permission also fails, throw the original error
+            console.error("Failed to request permission:", permError);
+        }
+
+        // Re-throw original error if permission handshake didn't fix it
+        const errorMessage = e?.message ?? String(e);
+        if (e instanceof TypeError && errorMessage.includes("Failed to fetch")) {
             throw new Error(
-                "Cannot connect to AnkiConnect. Check that Anki is running and CORS is configured.",
+                "Cannot connect to Anki. Ensure Anki is open and you have clicked 'Yes' on the permission popup if it appeared.",
             );
         } else {
             throw new Error(errorMessage);
         }
     }
+}
+
+/**
+ * Check connection and get version
+ */
+export async function getAnkiVersion(url: string) {
+    try {
+        const ver = await ankiConnect("version", {}, url);
+        return { ok: true, version: ver };
+    } catch (e) {
+        return { ok: false, error: e };
+    }
+}
+
+/**
+ * Get all deck names
+ */
+export async function getDeckNames(url: string): Promise<string[]> {
+    return await ankiConnect("deckNames", {}, url);
+}
+
+/**
+ * Get all model names (Card Types)
+ */
+export async function getModelNames(url: string): Promise<string[]> {
+    return await ankiConnect("modelNames", {}, url);
+}
+
+/**
+ * Get fields for a specific model
+ */
+export async function getModelFields(url: string, modelName: string): Promise<string[]> {
+    return await ankiConnect("modelFieldNames", { modelName }, url);
 }
 
 /**

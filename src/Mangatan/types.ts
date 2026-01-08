@@ -44,6 +44,9 @@ export interface Settings {
     ankiImageField: string;
     ankiImageQuality: number;
     ankiEnableCropper: boolean;
+    ankiDeck?: string;
+    ankiModel?: string;
+    ankiFieldMap?: Record<string, string>;
 }
 
 export type MergeState = { imgSrc: string; index: number; } | null;
@@ -138,7 +141,10 @@ export const DEFAULT_SETTINGS: Settings = {
     ankiSentenceField: '',
     ankiImageField: '',
     ankiImageQuality: 0.92,
-    ankiEnableCropper: false
+    ankiEnableCropper: false,
+    ankiDeck: '',
+    ankiModel: '',
+    ankiFieldMap: {}
 };
 
 export const COLOR_THEMES: Record<ColorTheme, { accent: string; background: string }> = {
