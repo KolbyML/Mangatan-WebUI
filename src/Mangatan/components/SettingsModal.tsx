@@ -31,8 +31,7 @@ const statusDotStyle = (connected: boolean): React.CSSProperties => ({
     boxShadow: connected ? '0 0 5px #2ecc71' : 'none'
 });
 
-// Updated Mapping Options to distinguish between Furigana (brackets) and Reading (kana only)
-const MAPPING_OPTIONS = ['None', 'Target Word', 'Furigana', 'Reading', 'Definition', 'Sentence', 'Image'];
+const MAPPING_OPTIONS = ['None', 'Sentence', 'Image', 'Furigana', 'Reading', 'Target Word', 'Definition'];
 
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { settings, setSettings, showConfirm, showAlert, showProgress, closeDialog, showDialog } = useOCR();
@@ -54,6 +53,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const [appVersion, setAppVersion] = useState<string>('...');
     const [updateAvailable, setUpdateAvailable] = useState<any>(null);
     const [updateStatus, setUpdateStatus] = useState<string>('idle');
+
+    // Determine which mapping options to show based on dictionary state
+    const currentMappingOptions = localSettings.enableYomitan ? MAPPING_OPTIONS_FULL : MAPPING_OPTIONS_BASIC;
 
     // --- ANKI EFFECT ---
     const fetchAnkiData = async () => {
@@ -199,6 +201,30 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         handleChange('ankiFieldMap', newMap);
     };
 
+    // New helper to handle the inverted selection (Content -> Field)
+    const handleContentToFieldChange = (contentType: string, targetField: string) => {
+        const newMap = { ...localSettings.ankiFieldMap };
+
+        // 1. Remove this content type from any other fields to prevent duplicates
+        Object.keys(newMap).forEach(key => {
+            if (newMap[key] === contentType) {
+                delete newMap[key]; 
+            }
+        });
+
+        // 2. Assign the content type to the new target field
+        if (targetField) {
+            newMap[targetField] = contentType;
+        }
+
+        handleChange('ankiFieldMap', newMap);
+    };
+
+    // Helper to find the field currently mapped to a specific content type
+    const getFieldForContent = (contentType: string) => {
+        return Object.keys(localSettings.ankiFieldMap || {}).find(key => localSettings.ankiFieldMap?.[key] === contentType) || '';
+    };
+
     const save = () => {
         localStorage.setItem('mangatan_settings_v3', JSON.stringify(localSettings));
         setSettings(localSettings);
@@ -262,6 +288,10 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const isiOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     const showDicts = isNativeApp || localSettings.enableYomitan;
+
+    // Consts for mapping options
+    const MAPPING_OPTIONS_FULL = ['None', 'Sentence', 'Image', 'Furigana', 'Reading', 'Target Word', 'Definition'];
+    const MAPPING_OPTIONS_BASIC = ['None', 'Sentence', 'Image'];
 
     return (
         <div className="ocr-modal-overlay" onClick={onClose}>
@@ -361,7 +391,10 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 <div>
                                     Enable AnkiConnect
                                     <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
-                                        Automatically add cards or update context
+                                        {localSettings.enableYomitan 
+                                            ? "Automatically add cards via the Popup Dictionary" 
+                                            : "Right-click (desktop) or hold (mobile) to update the last card (useful for third-party dictionaries)"
+                                        }
                                     </div>
                                 </div>
                             </label>
@@ -433,22 +466,24 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                         </label>
                                     </div>
 
-                                    <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        <label style={{ ...checkboxLabelStyle, marginBottom: '0' }}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={localSettings.ankiCheckDuplicates ?? true} 
-                                                onChange={(e) => handleChange('ankiCheckDuplicates', e.target.checked)} 
-                                                style={checkboxInputStyle} 
-                                            />
-                                            <div>
-                                                Check for Duplicates
-                                                <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
-                                                    Checks if the word already exists in the selected deck
+                                    {localSettings.enableYomitan && (
+                                        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <label style={{ ...checkboxLabelStyle, marginBottom: '0' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={localSettings.ankiCheckDuplicates ?? true} 
+                                                    onChange={(e) => handleChange('ankiCheckDuplicates', e.target.checked)} 
+                                                    style={checkboxInputStyle} 
+                                                />
+                                                <div>
+                                                    Check for Duplicates
+                                                    <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
+                                                        Checks if the word already exists in the selected deck
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </label>
-                                    </div>
+                                            </label>
+                                        </div>
+                                    )}
 
                                     {/* Deck & Model Selection */}
                                     {ankiStatus === 'connected' && (
@@ -469,7 +504,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                     id="ankiModel"
                                                     value={localSettings.ankiModel || ''}
                                                     onChange={e => {
-                                                        // Clear mapping when model changes to avoid stale keys
                                                         const newVal = e.target.value;
                                                         setLocalSettings(prev => ({
                                                             ...prev, 
@@ -483,38 +517,63 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                 </select>
                                             </div>
 
-                                            {/* Field Mapping Table */}
+                                            {/* Field Mapping Section */}
                                             {localSettings.ankiModel && currentModelFields.length > 0 && (
                                                 <div style={{ marginTop: '20px' }}>
                                                     <h4 style={{marginBottom: '10px', color: '#ddd'}}>Field Mapping</h4>
-                                                    <div style={{overflowX: 'auto'}}>
-                                                        <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.9em'}}>
-                                                            <thead>
-                                                                <tr style={{borderBottom: '1px solid rgba(255,255,255,0.2)'}}>
-                                                                    <th style={{textAlign: 'left', padding: '8px', color: '#aaa'}}>Anki Field</th>
-                                                                    <th style={{textAlign: 'left', padding: '8px', color: '#aaa'}}>Content</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {currentModelFields.map(field => (
-                                                                    <tr key={field} style={{borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
-                                                                        <td style={{padding: '8px'}}>{field}</td>
-                                                                        <td style={{padding: '8px'}}>
-                                                                            <select
-                                                                                style={{width: '100%', padding: '4px', borderRadius: '4px', border: '1px solid #444', background: '#222', color: 'white'}}
-                                                                                value={(localSettings.ankiFieldMap as any)?.[field] || 'None'}
-                                                                                onChange={e => handleFieldMapChange(field, e.target.value)}
-                                                                            >
-                                                                                {MAPPING_OPTIONS.map(opt => (
-                                                                                    <option key={opt} value={opt}>{opt}</option>
-                                                                                ))}
-                                                                            </select>
-                                                                        </td>
+                                                    
+                                                    {/* If built-in dictionary is enabled, show full table mapping */}
+                                                    {localSettings.enableYomitan ? (
+                                                        <div style={{overflowX: 'auto'}}>
+                                                            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.9em'}}>
+                                                                <thead>
+                                                                    <tr style={{borderBottom: '1px solid rgba(255,255,255,0.2)'}}>
+                                                                        <th style={{textAlign: 'left', padding: '8px', color: '#aaa'}}>Anki Field</th>
+                                                                        <th style={{textAlign: 'left', padding: '8px', color: '#aaa'}}>Content</th>
                                                                     </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {currentModelFields.map(field => (
+                                                                        <tr key={field} style={{borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
+                                                                            <td style={{padding: '8px'}}>{field}</td>
+                                                                            <td style={{padding: '8px'}}>
+                                                                                <select
+                                                                                    style={{width: '100%', padding: '4px', borderRadius: '4px', border: '1px solid #444', background: '#222', color: 'white'}}
+                                                                                    value={(localSettings.ankiFieldMap as any)?.[field] || 'None'}
+                                                                                    onChange={e => handleFieldMapChange(field, e.target.value)}
+                                                                                >
+                                                                                    {MAPPING_OPTIONS.map(opt => (
+                                                                                        <option key={opt} value={opt}>{opt}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ) : (
+                                                        // If built-in dictionary is disabled, show simple dropdowns for Sentence/Image
+                                                        <div className="grid">
+                                                            <label>Sentence Field</label>
+                                                            <select
+                                                                value={getFieldForContent('Sentence')}
+                                                                onChange={(e) => handleContentToFieldChange('Sentence', e.target.value)}
+                                                            >
+                                                                <option value="">(None)</option>
+                                                                {currentModelFields.map(f => <option key={f} value={f}>{f}</option>)}
+                                                            </select>
+
+                                                            <label>Image Field</label>
+                                                            <select
+                                                                value={getFieldForContent('Image')}
+                                                                onChange={(e) => handleContentToFieldChange('Image', e.target.value)}
+                                                            >
+                                                                <option value="">(None)</option>
+                                                                {currentModelFields.map(f => <option key={f} value={f}>{f}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </>
