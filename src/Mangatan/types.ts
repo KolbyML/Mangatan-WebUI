@@ -39,8 +39,11 @@ export interface Settings {
     mergeModifierKey: string;
     site: SiteConfig;
     ankiConnectEnabled: boolean;
+    ankiConnectUrl: string;
     ankiSentenceField: string;
     ankiImageField: string;
+    ankiImageQuality: number;
+    ankiEnableCropper: boolean;
 }
 
 export type MergeState = { imgSrc: string; index: number; } | null;
@@ -131,8 +134,11 @@ export const DEFAULT_SETTINGS: Settings = {
         contentRootSelector: '#root',
     },
     ankiConnectEnabled: false,
+    ankiConnectUrl: 'http://127.0.0.1:8765',
     ankiSentenceField: '',
     ankiImageField: '',
+    ankiImageQuality: 0.92,
+    ankiEnableCropper: false
 };
 
 export const COLOR_THEMES: Record<ColorTheme, { accent: string; background: string }> = {

@@ -273,6 +273,12 @@ body:has(.MuiDialogContent-root) .ocr-overlay-container {
     pointer-events: none !important;
 }
 
+/* --- HIDE OCR OVERLAY WHEN CROPPER MODAL OR SETTINGS MODAL IS OPEN --- */
+body:has(.ocr-modal) .ocr-overlay-container {
+    display: none !important;
+    pointer-events: none !important;
+}
+
 /* --- STATUS ICON --- */
 .ocr-status-icon-container {
     position: absolute; top: 15px; right: 15px; z-index: 200000; 
