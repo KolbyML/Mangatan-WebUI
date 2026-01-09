@@ -359,6 +359,17 @@ export const TextBox: React.FC<{
         if (e.key === 'Delete') { e.preventDefault(); onDelete(index); }
     };
 
+    const handleCopy = (e: React.ClipboardEvent) => {
+        if (isEditing) return;
+
+        e.preventDefault();
+        const selection = window.getSelection();
+        if (!selection) return;
+
+        const cleanText = selection.toString().replace(/(\r\n|\n|\r)/gm, "");
+        e.clipboardData.setData('text/plain', cleanText);
+    };
+
     const isMergedTarget = mergeAnchor?.imgSrc === imgSrc && mergeAnchor?.index === index;
     const isLookingUp = dictPopup.visible && dictPopup.highlight?.imgSrc === imgSrc && dictPopup.highlight?.index === index;
 
@@ -378,6 +389,8 @@ export const TextBox: React.FC<{
                 onContextMenu={(e) => {
                     if (settings.ankiConnectEnabled && !e.shiftKey) handleAnkiRequest(e);
                 }}
+                onCopy={handleCopy}
+                
                 onBlur={() => {
                     if (settings.mobileMode) return;
                     setIsEditing(false);
