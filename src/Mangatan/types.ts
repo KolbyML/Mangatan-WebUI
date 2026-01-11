@@ -13,15 +13,14 @@ export interface SiteConfig {
     contentRootSelector?: string;
 }
 
-export type ColorTheme = 'blue' | 'red' | 'green' | 'orange' | 'purple' | 'turquoise' | 'pink' | 'grey';
+// Added 'dark' to the allowed types
+export type ColorTheme = 'blue' | 'red' | 'green' | 'orange' | 'purple' | 'turquoise' | 'pink' | 'grey' | 'white' | 'dark';
 
 export interface ServerSettingsData { authUsername?: string; authPassword?: string; }
 
 export interface Settings {
     interactionMode: 'hover' | 'click';
     colorTheme: ColorTheme;
-    brightnessMode: 'light' | 'dark';
-    focusFontColor: 'default' | 'black' | 'white' | 'difference';
     dimmedOpacity: number;
     fontMultiplierHorizontal: number;
     fontMultiplierVertical: number;
@@ -113,9 +112,8 @@ const ENABLE_YOMITAN_DEFAULT = isAndroidNative || isIOS;
 
 export const DEFAULT_SETTINGS: Settings = {
     interactionMode: 'hover',
-    colorTheme: 'blue',
-    brightnessMode: 'light',
-    focusFontColor: 'black',
+    colorTheme: 'white',
+    // Removed brightnessMode default
     dimmedOpacity: 0.3,
     fontMultiplierHorizontal: 1.0,
     fontMultiplierVertical: 1.0,
@@ -160,4 +158,7 @@ export const COLOR_THEMES: Record<ColorTheme, { accent: string; background: stri
     turquoise: { accent: '#1abc9c', background: '#e5fffa' },
     pink: { accent: '#ff4dde', background: '#ffe5ff' },
     grey: { accent: '#95a5a6', background: '#e5ecec' },
+    white: { accent: '#333333', background: '#ffffff' },
+    dark: { accent: '#555555', background: '#1a1d21' },
 };
+

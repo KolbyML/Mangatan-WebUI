@@ -45,19 +45,20 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
         try {
             const saved = localStorage.getItem('mangatan_settings_v3');
             if (saved) {
-                return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+                // Ensure legacy settings are cleaned up if necessary
+                const parsed = JSON.parse(saved);
+                if ('brightnessMode' in parsed) delete parsed.brightnessMode;
+                return { ...DEFAULT_SETTINGS, ...parsed };
             }
         } catch (e) { console.error("Failed to load settings", e); }
         
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        // FIX: Check for Native Android User Agent
         const isNative = navigator.userAgent.includes('MangatanNative');
         
         return { 
             ...DEFAULT_SETTINGS, 
             mobileMode: isMobile, 
-            // Enable Yomitan for iOS OR Native Android App
             enableYomitan: isiOS || isNative 
         };
     });
@@ -80,7 +81,6 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const wasPopupClosedRecently = useCallback(() => {
-        // Increased grace period to 1000ms to catch laggy ghost clicks
         return Date.now() - lastPopupCloseRef.current < 1000;
     }, []);
 
@@ -137,7 +137,8 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
         const theme = COLOR_THEMES[settings.colorTheme] || COLOR_THEMES.blue;
         document.documentElement.style.setProperty('--ocr-accent', theme.accent);
 
-        if (settings.brightnessMode === 'dark') {
+        // Updated Dark Mode Logic to use Theme instead of Brightness
+        if (settings.colorTheme === 'dark') {
             document.documentElement.style.setProperty('--ocr-bg', '#1a1d21');
             document.documentElement.style.setProperty('--ocr-text-color', '#eaeaea');
         } else {

@@ -54,9 +54,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const [updateAvailable, setUpdateAvailable] = useState<any>(null);
     const [updateStatus, setUpdateStatus] = useState<string>('idle');
 
-    // Determine which mapping options to show based on dictionary state
-    const currentMappingOptions = localSettings.enableYomitan ? MAPPING_OPTIONS_FULL : MAPPING_OPTIONS_BASIC;
-
     // --- ANKI EFFECT ---
     const fetchAnkiData = async () => {
         if (!localSettings.ankiConnectEnabled) return;
@@ -288,10 +285,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const isiOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     const showDicts = isNativeApp || localSettings.enableYomitan;
-
-    // Consts for mapping options
-    const MAPPING_OPTIONS_FULL = ['None', 'Sentence', 'Image', 'Furigana', 'Reading', 'Target Word', 'Definition'];
-    const MAPPING_OPTIONS_BASIC = ['None', 'Sentence', 'Image'];
 
     return (
         <div className="ocr-modal-overlay" onClick={onClose}>
@@ -599,14 +592,6 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         <label htmlFor="colorTheme">Theme</label>
                         <select id="colorTheme" value={localSettings.colorTheme} onChange={(e) => handleChange('colorTheme', e.target.value)}>
                             {Object.keys(COLOR_THEMES).map((k) => <option key={k} value={k}>{k}</option>)}
-                        </select>
-                        <label htmlFor="brightnessMode">Brightness</label>
-                        <select id="brightnessMode" value={localSettings.brightnessMode} onChange={(e) => handleChange('brightnessMode', e.target.value)}>
-                            <option value="light">Light</option><option value="dark">Dark</option>
-                        </select>
-                        <label htmlFor="focusFontColor">Text Color</label>
-                        <select id="focusFontColor" value={localSettings.focusFontColor} onChange={(e) => handleChange('focusFontColor', e.target.value)}>
-                            <option value="default">Default</option><option value="black">Black</option><option value="white">White</option><option value="difference">Difference (Blend)</option>
                         </select>
                         <label htmlFor="textOrientation">Orientation</label>
                         <select id="textOrientation" value={localSettings.textOrientation} onChange={(e) => handleChange('textOrientation', e.target.value)}>

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
-import { OcrBlock } from '@/Mangatan/types';
+import { OcrBlock, COLOR_THEMES } from '@/Mangatan/types';
 import { useOCR } from '@/Mangatan/context/OCRContext';
 import { cleanPunctuation, lookupYomitan } from '@/Mangatan/utils/api';
 import { updateLastCard } from '@/Mangatan/utils/anki';
@@ -66,7 +66,29 @@ export const TextBox: React.FC<{
 
     const adj = settings.boundingBoxAdjustment || 0;
 
-    const bgColor = settings.brightnessMode === 'dark' ? '#1a1d21' : '#ffffff';
+    // --- COLOR THEME LOGIC ---
+    const theme = COLOR_THEMES[settings.colorTheme] || COLOR_THEMES.white;
+    const isDarkTheme = settings.colorTheme === 'dark';
+    const isWhiteTheme = settings.colorTheme === 'white';
+
+    // Background Color Logic
+    const bgColor = isDarkTheme 
+        ? '#1a1d21' 
+        : (isWhiteTheme ? '#ffffff' : theme.background);
+
+    // Active Background Logic
+    // Dark Theme: slightly lighter dark
+    // Other Themes: Theme background (or white if White theme)
+    const activeBgColor = isDarkTheme 
+        ? '#2d3436' 
+        : (isWhiteTheme ? '#ffffff' : theme.background);
+
+    // Border Logic
+    // White/Dark themes: use a neutral gray border unless active
+    // Colored themes: Always use accent color for border (as per request to not use gray)
+    const borderColor = (isWhiteTheme || isDarkTheme) 
+        ? theme.accent 
+        : theme.accent;
 
     useLayoutEffect(() => {
         if (!ref.current) return;
@@ -149,13 +171,8 @@ export const TextBox: React.FC<{
 
     // Helper to get correct Anki field from mapping settings
     const getTargetField = (type: 'Image' | 'Sentence') => {
-        console.log('Getting target field for type:', type);
         if (settings.ankiFieldMap) {
-            console.log('Anki field map:', settings.ankiFieldMap);
-            // Find key where value === type (e.g. Find key "Picture" where value is "Image")
-            console.log('Searching for field mapping for type:', type);
             const mapped = Object.keys(settings.ankiFieldMap).find(key => settings.ankiFieldMap![key] === type);
-            console.log('Mapped field found:', mapped);
             if (mapped) return mapped;
         }
         return '';
@@ -345,7 +362,7 @@ export const TextBox: React.FC<{
                     ...prev, 
                     results: results, 
                     isLoading: false, 
-                    systemLoading: false,
+                    systemLoading: false, 
                     highlight: { imgSrc, index, startChar: charOffset, length: (results && results[0]?.matchLen) || 1 }
                 }));
             }
@@ -407,13 +424,17 @@ export const TextBox: React.FC<{
                     width: 'fit-content',
                     height: 'fit-content',
                     fontSize: `${fontSize}px`,
-                    color: settings.focusFontColor === 'difference' ? 'white' : 'var(--ocr-text-color)',
-                    mixBlendMode: settings.focusFontColor === 'difference' ? 'difference' : 'normal',
+                    color: 'var(--ocr-text-color)',
                     whiteSpace: 'pre',
                     overflow: isEditing ? 'auto' : 'visible', 
                     touchAction: 'pan-y', 
-                    backgroundColor: bgColor,
-                    outline: isActive ? '2px solid var(--ocr-accent, #4890ff)' : 'none',
+                    
+                    // Style Overrides
+                    backgroundColor: isActive ? activeBgColor : bgColor,
+                    border: `1px solid ${isActive ? theme.accent : borderColor}`,
+                    outline: isActive ? `2px solid ${theme.accent}` : 'none',
+                    borderRadius: '3px',
+                    
                     lineHeight: isVertical ? '1.5' : '1.1',
                 }}
             >
@@ -430,4 +451,4 @@ export const TextBox: React.FC<{
             )}
         </>
     );
-};
+    };
