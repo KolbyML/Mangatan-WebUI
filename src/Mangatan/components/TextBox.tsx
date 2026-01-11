@@ -67,7 +67,6 @@ export const TextBox: React.FC<{
     const adj = settings.boundingBoxAdjustment || 0;
 
     const bgColor = settings.brightnessMode === 'dark' ? '#1a1d21' : '#ffffff';
-    const activeBgColor = settings.brightnessMode === 'dark' ? '#2d3436' : '#e3f2fd';
 
     useLayoutEffect(() => {
         if (!ref.current) return;
@@ -413,7 +412,7 @@ export const TextBox: React.FC<{
                     whiteSpace: 'pre',
                     overflow: isEditing ? 'auto' : 'visible', 
                     touchAction: 'pan-y', 
-                    backgroundColor: isActive ? activeBgColor : bgColor,
+                    backgroundColor: bgColor,
                     outline: isActive ? '2px solid var(--ocr-accent, #4890ff)' : 'none',
                     lineHeight: isVertical ? '1.5' : '1.1',
                 }}
