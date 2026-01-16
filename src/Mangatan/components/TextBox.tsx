@@ -497,6 +497,11 @@ export const TextBox: React.FC<{
                 onMouseLeave={() => setIsLocalHover(false)}
                 
                 onMouseUp={handleMouseUpFix}
+                onMouseDown={(e) => {
+                    if (!settings.mobileMode) {
+                        e.stopPropagation();
+                    }
+                }}
 
                 style={{
                     left: `calc(${block.tightBoundingBox.x * 100}% - ${adj / 2}px)`,
