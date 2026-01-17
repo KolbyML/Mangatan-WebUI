@@ -26,6 +26,7 @@ export const SettingsInjector = () => {
 
     const readerRef = useRef<HTMLElement | null>(null);
     const libraryRef = useRef<HTMLElement | null>(null);
+    const rafRef = useRef<number | null>(null);
 
 
     useEffect(() => {
@@ -107,11 +108,24 @@ export const SettingsInjector = () => {
         };
 
         scanDOM();
-        const observer = new MutationObserver(() => scanDOM());
-        observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+        
+        const handleMutation = () => {
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+            }
+            rafRef.current = requestAnimationFrame(scanDOM);
+        };
+        const observer = new MutationObserver(handleMutation);
+        observer.observe(document.body, { 
+            childList: true, 
+            subtree: true, 
+            attributes: true, 
+            attributeFilter: ['class', 'aria-label', 'href'] // Only listen to relevant attr changes
+        });
 
         return () => {
             observer.disconnect();
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
             const container = document.getElementById('mangatan-nav-anchor');
             if (container) container.remove();
         };
