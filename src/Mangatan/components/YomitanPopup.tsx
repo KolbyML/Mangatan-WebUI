@@ -45,7 +45,7 @@ const ContentNode: React.FC<{ node: any }> = ({ node }) => {
         case 'li': return <li style={{ ...s }}><ContentNode node={content} /></li>;
         case 'table': return <table style={{ ...s, ...tableStyle }}><tbody><ContentNode node={content} /></tbody></table>;
         case 'tr': return <tr style={s}><ContentNode node={content} /></tr>;
-        case 'th': return <th style={{ ...s, ...cellStyle, backgroundColor: '#eee', fontWeight: 'bold' }}><ContentNode node={content} /></th>;
+        case 'th': return <th style={{ ...s, ...cellStyle, fontWeight: 'bold' }}><ContentNode node={content} /></th>;
         case 'td': return <td style={{ ...s, ...cellStyle }}><ContentNode node={content} /></td>;
         case 'span': return <span style={s}><ContentNode node={content} /></span>;
         case 'div': return <div style={s}><ContentNode node={content} /></div>;
@@ -162,11 +162,11 @@ const AnkiButtons: React.FC<{
             }
             if (tag === 'li') return `<li style="${customStyle}">${generateHTML(content)}</li>`;
             if (tag === 'table') {
-                baseStyle = 'border-collapse: collapse; border: 1px solid #777; margin: 4px 0; font-size: 0.9em; width: 100%;';
+                baseStyle = 'border-collapse: collapse; width: 100%; border: 1px solid #777;';
                 return `<table style="${baseStyle}${customStyle}"><tbody>${generateHTML(content)}</tbody></table>`;
             }
             if (tag === 'tr') return `<tr style="${customStyle}">${generateHTML(content)}</tr>`;
-            if (tag === 'th') {
+             if (tag === 'th') {
                 baseStyle = 'border: 1px solid #777; padding: 2px 8px; text-align: center; font-weight: bold;';
                 return `<th style="${baseStyle}${customStyle}">${generateHTML(content)}</th>`;
             }
