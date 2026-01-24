@@ -37,6 +37,11 @@ export function GridLayouts({
         setAnchorEl(null);
     };
 
+    const handleSelection = (layout: GridLayout) => {
+        onChange(layout);
+        handleClose();
+    };
+
     function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
         onChange(parseInt(e.target.name, 10));
     }
@@ -62,7 +67,7 @@ export function GridLayouts({
                 onClose={handleClose}
                 MenuListProps={{ 'aria-labelledby': 'basic-button' }}
             >
-                <MenuItem onClick={handleClose}>
+                <MenuItem onClick={() => handleSelection(GridLayout.Compact)}>
                     <FormControlLabel
                         label={t('global.grid_layout.label.compact_grid')}
                         value={GridLayout.Compact}
@@ -75,7 +80,7 @@ export function GridLayouts({
                         }
                     />
                 </MenuItem>
-                <MenuItem onClick={handleClose}>
+                <MenuItem onClick={() => handleSelection(GridLayout.Comfortable)}>
                     <FormControlLabel
                         label={t('global.grid_layout.label.comfortable_grid')}
                         control={
@@ -87,7 +92,7 @@ export function GridLayouts({
                         }
                     />
                 </MenuItem>
-                <MenuItem onClick={handleClose}>
+                <MenuItem onClick={() => handleSelection(GridLayout.List)}>
                     <FormControlLabel
                         label={t('global.grid_layout.label.list')}
                         control={

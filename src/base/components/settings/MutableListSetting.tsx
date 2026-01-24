@@ -14,7 +14,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import { useTranslation } from 'react-i18next';
@@ -93,6 +93,7 @@ export const MutableListSetting = ({
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [dialogValues, setDialogValues] = useState(values);
+    const dialogRef = useRef<HTMLDivElement | null>(null);
 
     const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
 
@@ -147,7 +148,12 @@ export const MutableListSetting = ({
 
     return (
         <>
-            <ListItemButton onClick={() => setIsDialogOpen(true)}>
+            <ListItemButton
+                onClick={() => {
+                    (document.activeElement as HTMLElement | null)?.blur();
+                    setIsDialogOpen(true);
+                }}
+            >
                 <ListItemText
                     primary={settingName}
                     secondary={values?.length ? values?.join(', ') : description}
@@ -157,7 +163,13 @@ export const MutableListSetting = ({
                 />
             </ListItemButton>
 
-            <Dialog open={isDialogOpen} onClose={() => closeDialog()} fullWidth>
+            <Dialog
+                open={isDialogOpen}
+                onClose={() => closeDialog()}
+                fullWidth
+                onEntered={() => dialogRef.current?.focus()}
+                PaperProps={{ ref: dialogRef, tabIndex: -1 }}
+            >
                 <DialogTitle>{settingName}</DialogTitle>
                 {(!!description || !!dialogDisclaimer) && (
                     <DialogContent>

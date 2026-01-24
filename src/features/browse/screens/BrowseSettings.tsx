@@ -28,7 +28,9 @@ import { ServerSettings as GqlServerSettings } from '@/features/settings/Setting
 import { getErrorMessage } from '@/lib/HelperFunctions.ts';
 import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
 
-type ExtensionsSettings = Pick<GqlServerSettings, 'maxSourcesInParallel' | 'localSourcePath' | 'extensionRepos'>;
+type ExtensionsSettings = Pick<GqlServerSettings, 'maxSourcesInParallel' | 'localSourcePath' | 'extensionRepos'> & {
+    animeExtensionRepos: string[];
+};
 
 export const BrowseSettings = () => {
     const { t } = useTranslation();
@@ -44,8 +46,9 @@ export const BrowseSettings = () => {
         setting: Setting,
         value: ExtensionsSettings[Setting],
     ) => {
-        mutateSettings({ variables: { input: { settings: { [setting]: value } } } }).catch((e) =>
-            makeToast(t('global.error.label.failed_to_save_changes'), 'error', getErrorMessage(e)),
+        mutateSettings({ variables: { input: { settings: { [setting]: value } as Record<string, unknown> } } }).catch(
+            (e) =>
+                makeToast(t('global.error.label.failed_to_save_changes'), 'error', getErrorMessage(e)),
         );
     };
 
@@ -70,7 +73,7 @@ export const BrowseSettings = () => {
         );
     }
 
-    const serverSettings = data!.settings;
+    const serverSettings = data!.settings as ExtensionsSettings;
 
     return (
         <List sx={{ pt: 0 }}>
@@ -109,7 +112,7 @@ export const BrowseSettings = () => {
                 handleUpdate={(parallelSources) => updateSetting('maxSourcesInParallel', parallelSources)}
             />
             <MutableListSetting
-                settingName={t('extension.settings.repositories.custom.label.title')}
+                settingName={`Manga ${t('extension.settings.repositories.custom.label.title')}`}
                 description={t('extension.settings.repositories.custom.label.description')}
                 dialogDisclaimer={
                     <Trans i18nKey="extension.settings.repositories.custom.label.disclaimer">
@@ -125,6 +128,31 @@ export const BrowseSettings = () => {
                     requestManager.clearExtensionCache();
                 }}
                 valueInfos={serverSettings.extensionRepos.map((extensionRepo) => [extensionRepo])}
+                addItemButtonTitle={t('extension.settings.repositories.custom.dialog.action.button.add')}
+                placeholder="https://github.com/MY_ACCOUNT/MY_REPO/tree/repo"
+                validateItem={(repo) =>
+                    !!repo.match(
+                        /https:\/\/(www\.|raw\.)?(github|githubusercontent)\.com\/([^/]+)\/([^/]+)((\/tree|\/blob)?\/([^/\n]*))?(\/([^/\n]*\.json)?)?/g,
+                    )
+                }
+                invalidItemError={t('extension.settings.repositories.custom.error.label.invalid_url')}
+            />
+            <MutableListSetting
+                settingName={`Anime ${t('extension.settings.repositories.custom.label.title')}`}
+                description={t('extension.settings.repositories.custom.label.description')}
+                dialogDisclaimer={
+                    <Trans i18nKey="extension.settings.repositories.custom.label.disclaimer">
+                        <strong>Suwayomi does not provide any support for 3rd party repositories or extensions!</strong>
+                        <br />
+                        Use with caution as there could be malicious actors making those repositories.
+                        <br />
+                        You as the user need to verify the security and that you trust any repository or extension.
+                    </Trans>
+                }
+                handleChange={(repos) => {
+                    updateSetting('animeExtensionRepos', repos);
+                }}
+                valueInfos={(serverSettings.animeExtensionRepos ?? []).map((extensionRepo) => [extensionRepo])}
                 addItemButtonTitle={t('extension.settings.repositories.custom.dialog.action.button.add')}
                 placeholder="https://github.com/MY_ACCOUNT/MY_REPO/tree/repo"
                 validateItem={(repo) =>

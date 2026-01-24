@@ -12,10 +12,13 @@ import { useTranslation } from 'react-i18next';
 import { StringParam, useQueryParam } from 'use-query-params';
 import { Sources } from '@/features/browse/sources/Sources.tsx';
 import { Extensions } from '@/features/browse/extensions/Extensions.tsx';
+import { AnimeSources } from '@/features/browse/sources/AnimeSources.tsx';
+import { AnimeExtensions } from '@/features/browse/extensions/AnimeExtensions.tsx';
 import { TabPanel } from '@/base/components/tabs/TabPanel.tsx';
 import { TabsWrapper } from '@/base/components/tabs/TabsWrapper.tsx';
 import { TabsMenu } from '@/base/components/tabs/TabsMenu.tsx';
 import { Migration } from '@/features/migration/screens/Migration.tsx';
+import { AnimeMigration } from '@/features/migration/screens/AnimeMigration.tsx';
 import { useResizeObserver } from '@/base/hooks/useResizeObserver.tsx';
 import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
 import { BrowseTab } from '@/features/browse/Browse.types.ts';
@@ -34,7 +37,7 @@ export function Browse() {
     );
 
     const [tabSearchParam, setTabSearchParam] = useQueryParam(SearchParam.TAB, StringParam, {});
-    const tabName = (tabSearchParam as BrowseTab) ?? BrowseTab.SOURCES;
+    const tabName = (tabSearchParam as BrowseTab) ?? BrowseTab.MANGA_SOURCES;
 
     if (!tabSearchParam) {
         setTabSearchParam(tabName, 'replaceIn');
@@ -49,20 +52,32 @@ export function Browse() {
                 value={tabName}
                 onChange={(_, newTab) => setTabSearchParam(newTab, 'replaceIn')}
             >
-                <Tab value={BrowseTab.SOURCES} sx={{ textTransform: 'none' }} label={t('source.title_other')} />
-                <Tab value={BrowseTab.EXTENSIONS} sx={{ textTransform: 'none' }} label={t('extension.title_other')} />
-                <Tab value={BrowseTab.MIGRATE} sx={{ textTransform: 'none' }} label={t('migrate.title')} />
+                <Tab value={BrowseTab.ANIME_SOURCES} sx={{ textTransform: 'none' }} label="Anime Sources" />
+                <Tab value={BrowseTab.MANGA_SOURCES} sx={{ textTransform: 'none' }} label="Manga Sources" />
+                <Tab value={BrowseTab.ANIME_EXTENSIONS} sx={{ textTransform: 'none' }} label="Anime Extensions" />
+                <Tab value={BrowseTab.MANGA_EXTENSIONS} sx={{ textTransform: 'none' }} label="Manga Extensions" />
+                <Tab value={BrowseTab.ANIME_MIGRATE} sx={{ textTransform: 'none' }} label="Migrate Anime" />
+                <Tab value={BrowseTab.MANGA_MIGRATE} sx={{ textTransform: 'none' }} label="Migrate Manga" />
             </TabsMenu>
             <TabPanel index={BrowseTab.SOURCE_DEPRECATED} currentIndex={tabName}>
                 <Sources tabsMenuHeight={tabsMenuHeight} />
             </TabPanel>
-            <TabPanel index={BrowseTab.SOURCES} currentIndex={tabName}>
+            <TabPanel index={BrowseTab.ANIME_SOURCES} currentIndex={tabName}>
+                <AnimeSources tabsMenuHeight={tabsMenuHeight} />
+            </TabPanel>
+            <TabPanel index={BrowseTab.MANGA_SOURCES} currentIndex={tabName}>
                 <Sources tabsMenuHeight={tabsMenuHeight} />
             </TabPanel>
-            <TabPanel index={BrowseTab.EXTENSIONS} currentIndex={tabName}>
+            <TabPanel index={BrowseTab.ANIME_EXTENSIONS} currentIndex={tabName}>
+                <AnimeExtensions tabsMenuHeight={tabsMenuHeight} />
+            </TabPanel>
+            <TabPanel index={BrowseTab.MANGA_EXTENSIONS} currentIndex={tabName}>
                 <Extensions tabsMenuHeight={tabsMenuHeight} />
             </TabPanel>
-            <TabPanel index={BrowseTab.MIGRATE} currentIndex={tabName}>
+            <TabPanel index={BrowseTab.ANIME_MIGRATE} currentIndex={tabName}>
+                <AnimeMigration tabsMenuHeight={tabsMenuHeight} />
+            </TabPanel>
+            <TabPanel index={BrowseTab.MANGA_MIGRATE} currentIndex={tabName}>
                 <Migration tabsMenuHeight={tabsMenuHeight} />
             </TabPanel>
         </TabsWrapper>

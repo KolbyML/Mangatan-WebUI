@@ -189,11 +189,11 @@ export function Library() {
 
     useAppTitle(
         <TitleWithSizeTag>
-            {t('library.title')}
+            Manga
             {showTabSize && <TitleSizeTag sx={{ color: 'inherit' }} label={librarySize} />}
         </TitleWithSizeTag>,
-        t('library.title'),
-        [t, showTabSize, librarySize],
+        'Manga',
+        [showTabSize, librarySize],
     );
     useAppAction(
         <>

@@ -62,6 +62,7 @@ export const SERVER_SETTINGS = gql`
 
         # extensions
         extensionRepos
+        animeExtensionRepos
 
         # requests
         maxSourcesInParallel

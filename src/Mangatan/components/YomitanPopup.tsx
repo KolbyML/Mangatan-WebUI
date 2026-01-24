@@ -5,7 +5,7 @@ import { findNotes, addNote, guiBrowse, imageUrlToBase64Webp } from '@/Mangatan/
 import { DictionaryResult } from '@/Mangatan/types';
 import { CropperModal } from '@/Mangatan/components/CropperModal';
 
-const StructuredContent: React.FC<{ contentString: string }> = ({ contentString }) => {
+export const StructuredContent: React.FC<{ contentString: string }> = ({ contentString }) => {
     const parsedData = useMemo(() => {
         if (!contentString) return null;
         try {

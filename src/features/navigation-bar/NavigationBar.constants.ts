@@ -6,8 +6,10 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
-import CollectionsOutlinedBookmarkIcon from '@mui/icons-material/CollectionsBookmarkOutlined';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
+import MovieFilterIcon from '@mui/icons-material/MovieFilter';
+import MovieFilterOutlinedIcon from '@mui/icons-material/MovieFilterOutlined';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined';
 import HistoryIcon from '@mui/icons-material/History';
@@ -29,10 +31,18 @@ type RestrictedNavBarItem<Show extends NavbarItem['show']> = Omit<NavbarItem, 's
 
 const NAVIGATION_BAR_BASE_ITEMS = [
     {
+        path: AppRoutes.anime.path as RestrictedNavBarItem<'both'>['path'],
+        title: 'Anime',
+        SelectedIconComponent: MovieFilterIcon,
+        IconComponent: MovieFilterOutlinedIcon,
+        show: 'both',
+        moreGroup: NavBarItemMoreGroup.GENERAL,
+    },
+    {
         path: AppRoutes.library.path() as RestrictedNavBarItem<'both'>['path'],
-        title: 'library.title',
-        SelectedIconComponent: CollectionsBookmarkIcon,
-        IconComponent: CollectionsOutlinedBookmarkIcon,
+        title: 'Manga',
+        SelectedIconComponent: MenuBookIcon,
+        IconComponent: MenuBookOutlinedIcon,
         show: 'both',
         moreGroup: NavBarItemMoreGroup.GENERAL,
     },
@@ -49,8 +59,8 @@ const NAVIGATION_BAR_BASE_ITEMS = [
         title: 'history.title',
         SelectedIconComponent: HistoryIcon,
         IconComponent: HistoryOutlinedIcon,
-        show: 'both',
-        moreGroup: NavBarItemMoreGroup.GENERAL,
+        show: 'desktop',
+        moreGroup: NavBarItemMoreGroup.HIDDEN_ITEM,
     },
     {
         path: AppRoutes.browse.path() as RestrictedNavBarItem<'both'>['path'],

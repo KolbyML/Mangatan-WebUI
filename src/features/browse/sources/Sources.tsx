@@ -95,22 +95,26 @@ export function Sources({ tabsMenuHeight }: { tabsMenuHeight: number }) {
 
     const navigate = useNavigate();
 
-    useAppAction(
-        <>
-            <CustomTooltip title={t('search.title.global_search')}>
-                <IconButton onClick={() => navigate(AppRoutes.sources.childRoutes.searchAll.path())} color="inherit">
-                    <TravelExploreIcon />
-                </IconButton>
-            </CustomTooltip>
-            <SourceLanguageSelect
-                selectedLanguages={shownLangs}
-                setSelectedLanguages={setShownLangs}
-                languages={sourceLanguages}
-                sources={sources ?? []}
-            />
-        </>,
-        [t, shownLangs, sourceLanguages, sources],
+    const appAction = useMemo(
+        () => (
+            <>
+                <CustomTooltip title={t('search.title.global_search')}>
+                    <IconButton onClick={() => navigate(AppRoutes.sources.childRoutes.searchAll.path())} color="inherit">
+                        <TravelExploreIcon />
+                    </IconButton>
+                </CustomTooltip>
+                <SourceLanguageSelect
+                    selectedLanguages={shownLangs}
+                    setSelectedLanguages={setShownLangs}
+                    languages={sourceLanguages}
+                    sources={sources ?? []}
+                />
+            </>
+        ),
+        [t, navigate, shownLangs, sourceLanguages, sources],
     );
+
+    useAppAction(appAction, [appAction]);
 
     if (isLoading) return <LoadingPlaceholder />;
 

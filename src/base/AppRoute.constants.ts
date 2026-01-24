@@ -140,6 +140,17 @@ export const AppRoutes = {
             },
         },
     },
+    animeSources: {
+        match: 'anime-sources',
+        path: '/anime-sources',
+        childRoutes: {
+            browse: {
+                match: ':sourceId',
+                path: (sourceId: string, query?: string | null | undefined) =>
+                    UrlUtil.addQueryParam(`/anime-sources/${sourceId}`, query),
+            },
+        },
+    },
 
     extension: {
         match: 'extension',
@@ -164,6 +175,21 @@ export const AppRoutes = {
                 match: 'chapter/:chapterNum',
                 path: (mangaId: MangaIdInfo['id'], chapterNum: ChapterSourceOrderInfo['sourceOrder']) =>
                     `/manga/${mangaId}/chapter/${chapterNum}`,
+            },
+        },
+    },
+    anime: {
+        match: 'anime',
+        path: '/anime',
+        childRoutes: {
+            details: {
+                match: ':id',
+                path: (animeId: number | string) => `/anime/${animeId}`,
+            },
+            episode: {
+                match: ':id/episode/:episodeIndex',
+                path: (animeId: number | string, episodeIndex: number | string) =>
+                    `/anime/${animeId}/episode/${episodeIndex}`,
             },
         },
     },

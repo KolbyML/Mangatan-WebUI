@@ -26,6 +26,9 @@ export interface Settings {
     fontMultiplierVertical: number;
     focusScaleMultiplier: number;
     boundingBoxAdjustment: number;
+    subtitleFontSize: number;
+    subtitleFontWeight: number;
+    jimakuApiKey?: string;
     textOrientation: 'smart' | 'forceVertical' | 'forceHorizontal';
     debugMode: boolean;
     mobileMode: boolean;
@@ -126,6 +129,9 @@ export const DEFAULT_SETTINGS: Settings = {
     fontMultiplierVertical: 1.0,
     focusScaleMultiplier: 1.1,
     boundingBoxAdjustment: 5,
+    subtitleFontSize: 22,
+    subtitleFontWeight: 600,
+    jimakuApiKey: '',
     textOrientation: 'smart',
     debugMode: false,
     mobileMode: false,

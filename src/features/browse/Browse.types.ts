@@ -12,6 +12,7 @@ export type MetadataBrowseSettings = {
     hideLibraryEntries: boolean;
     extensionLanguages: string[];
     sourceLanguages: string[];
+    animeSourceLanguages: string[];
     showNsfw: boolean;
     lastUsedSourceId: SourceIdInfo['id'] | null;
     shouldShowOnlySourcesWithResults: boolean;
@@ -19,7 +20,10 @@ export type MetadataBrowseSettings = {
 
 export enum BrowseTab {
     SOURCE_DEPRECATED = 'source',
-    SOURCES = 'sources',
-    EXTENSIONS = 'extensions',
-    MIGRATE = 'migrate',
+    ANIME_SOURCES = 'anime-sources',
+    MANGA_SOURCES = 'manga-sources',
+    ANIME_EXTENSIONS = 'anime-extensions',
+    MANGA_EXTENSIONS = 'manga-extensions',
+    ANIME_MIGRATE = 'anime-migrate',
+    MANGA_MIGRATE = 'manga-migrate',
 }

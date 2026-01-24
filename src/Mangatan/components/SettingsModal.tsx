@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useOCR } from '@/Mangatan/context/OCRContext';
+import { AppStorage } from '@/lib/storage/AppStorage.ts';
 import { COLOR_THEMES, DEFAULT_SETTINGS } from '@/Mangatan/types';
 import { apiRequest, getAppVersion, checkForUpdates, triggerAppUpdate, installAppUpdate } from '@/Mangatan/utils/api';
 import { DictionaryManager } from './DictionaryManager';
@@ -222,7 +223,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     };
 
     const save = () => {
-        localStorage.setItem('mangatan_settings_v3', JSON.stringify(localSettings));
+        AppStorage.local.setItem('mangatan_settings_v3', JSON.stringify(localSettings));
         setSettings(localSettings);
         onClose();
         window.location.reload();
@@ -590,52 +591,92 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         </>
                     )}
 
-                    <h3>General Settings</h3>
-                    <div className="checkboxes">
-                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />Enable Text Overlay</label>
-                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.soloHoverMode} onChange={(e) => handleChange('soloHoverMode', e.target.checked)} style={checkboxInputStyle} />Solo Hover</label>
-                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.addSpaceOnMerge} onChange={(e) => handleChange('addSpaceOnMerge', e.target.checked)} style={checkboxInputStyle} />Add Space on Merge</label>
-                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.mobileMode} onChange={(e) => handleChange('mobileMode', e.target.checked)} style={checkboxInputStyle} />Mobile Mode</label>
-                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.debugMode} onChange={(e) => handleChange('debugMode', e.target.checked)} style={checkboxInputStyle} />Debug Mode</label>
-                        <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.disableStatusIcon} onChange={(e) => handleChange('disableStatusIcon', e.target.checked)} style={checkboxInputStyle} />Disable Status Icon</label>
-                    </div>                    
-
-                    <h3>Visuals</h3>
-                    <div className="grid">
-                        <label htmlFor="colorTheme">Theme</label>
-                        <select id="colorTheme" value={localSettings.colorTheme} onChange={(e) => handleChange('colorTheme', e.target.value)}>
-                            {Object.keys(COLOR_THEMES).map((k) => <option key={k} value={k}>{k}</option>)}
-                        </select>
-                        <label htmlFor="textOrientation">Orientation</label>
-                        <select id="textOrientation" value={localSettings.textOrientation} onChange={(e) => handleChange('textOrientation', e.target.value)}>
-                            <option value="smart">Smart</option><option value="forceHorizontal">Horizontal</option><option value="forceVertical">Vertical</option>
-                        </select>
+                    <h3>Anime Settings</h3>
+                    <div style={sectionBoxStyle}>
+                        <div className="grid" style={{ marginBottom: '10px' }}>
+                            <label htmlFor="subtitleFontSize">Subtitle Font (px)</label>
+                            <input
+                                id="subtitleFontSize"
+                                type="number"
+                                step="1"
+                                min="8"
+                                max="64"
+                                value={localSettings.subtitleFontSize}
+                                onChange={(e) => handleChange('subtitleFontSize', parseInt(e.target.value, 10))}
+                            />
+                            <label htmlFor="subtitleFontWeight">Subtitle Thickness</label>
+                            <input
+                                id="subtitleFontWeight"
+                                type="number"
+                                step="100"
+                                min="100"
+                                max="900"
+                                value={localSettings.subtitleFontWeight ?? 600}
+                                onChange={(e) => handleChange('subtitleFontWeight', parseInt(e.target.value, 10))}
+                            />
+                            <label htmlFor="jimakuApiKey">Jimaku API Key</label>
+                            <input
+                                id="jimakuApiKey"
+                                type="password"
+                                value={localSettings.jimakuApiKey ?? ''}
+                                onChange={(e) => handleChange('jimakuApiKey', e.target.value)}
+                                placeholder="Paste Jimaku API key"
+                            />
+                        </div>
+                        <div style={{ fontSize: '0.85em', color: '#aaa' }}>
+                            Used to fetch Jimaku subtitles for the current episode.
+                        </div>
                     </div>
 
-                    <h3>Fine Tuning</h3>
-                    <div className="grid">
-                        <label htmlFor="dimmedOpacity">Opacity</label>
-                        <input id="dimmedOpacity" type="number" step="0.1" max="1" min="0" value={localSettings.dimmedOpacity} onChange={(e) => handleChange('dimmedOpacity', parseFloat(e.target.value))} />
-                        <label htmlFor="focusScale">Scale</label>
-                        <input id="focusScale" type="number" step="0.1" value={localSettings.focusScaleMultiplier} onChange={(e) => handleChange('focusScaleMultiplier', parseFloat(e.target.value))} />
-                        <label htmlFor="fontMultH">H. Font Mult</label>
-                        <input id="fontMultH" type="number" step="0.1" value={localSettings.fontMultiplierHorizontal} onChange={(e) => handleChange('fontMultiplierHorizontal', parseFloat(e.target.value))} />
-                        <label htmlFor="fontMultV">V. Font Mult</label>
-                        <input id="fontMultV" type="number" step="0.1" value={localSettings.fontMultiplierVertical} onChange={(e) => handleChange('fontMultiplierVertical', parseFloat(e.target.value))} />
-                        <label htmlFor="boxAdjust">Box Adjust (px)</label>
-                        <input id="boxAdjust" type="number" step="1" value={localSettings.boundingBoxAdjustment} onChange={(e) => handleChange('boundingBoxAdjustment', parseInt(e.target.value, 10))} />
-                    </div>
+                    <h3>Manga Settings</h3>
+                    <div style={sectionBoxStyle}>
+                        <h4 style={{ marginTop: 0 }}>General</h4>
+                        <div className="checkboxes">
+                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />Enable Text Overlay</label>
+                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.soloHoverMode} onChange={(e) => handleChange('soloHoverMode', e.target.checked)} style={checkboxInputStyle} />Solo Hover</label>
+                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.addSpaceOnMerge} onChange={(e) => handleChange('addSpaceOnMerge', e.target.checked)} style={checkboxInputStyle} />Add Space on Merge</label>
+                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.mobileMode} onChange={(e) => handleChange('mobileMode', e.target.checked)} style={checkboxInputStyle} />Mobile Mode</label>
+                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.debugMode} onChange={(e) => handleChange('debugMode', e.target.checked)} style={checkboxInputStyle} />Debug Mode</label>
+                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.disableStatusIcon} onChange={(e) => handleChange('disableStatusIcon', e.target.checked)} style={checkboxInputStyle} />Disable Status Icon</label>
+                        </div>
 
-                    <h3>Interaction</h3>
-                    <div className="grid">
-                        <label htmlFor="interactMode">Mode</label>
-                        <select id="interactMode" value={localSettings.interactionMode} onChange={(e) => handleChange('interactionMode', e.target.value)}>
-                            <option value="hover">Hover</option><option value="click">Click</option>
-                        </select>
-                        <label htmlFor="delKey">Delete Key</label>
-                        <input id="delKey" value={localSettings.deleteModifierKey} onChange={(e) => handleChange('deleteModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
-                        <label htmlFor="mergeKey">Merge Key</label>
-                        <input id="mergeKey" value={localSettings.mergeModifierKey} onChange={(e) => handleChange('mergeModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
+                        <h4>Visuals</h4>
+                        <div className="grid">
+                            <label htmlFor="colorTheme">Theme</label>
+                            <select id="colorTheme" value={localSettings.colorTheme} onChange={(e) => handleChange('colorTheme', e.target.value)}>
+                                {Object.keys(COLOR_THEMES).map((k) => <option key={k} value={k}>{k}</option>)}
+                            </select>
+                            <label htmlFor="textOrientation">Orientation</label>
+                            <select id="textOrientation" value={localSettings.textOrientation} onChange={(e) => handleChange('textOrientation', e.target.value)}>
+                                <option value="smart">Smart</option><option value="forceHorizontal">Horizontal</option><option value="forceVertical">Vertical</option>
+                            </select>
+                        </div>
+
+                        <h4>Fine Tuning</h4>
+                        <div className="grid">
+                            <label htmlFor="dimmedOpacity">Opacity</label>
+                            <input id="dimmedOpacity" type="number" step="0.1" max="1" min="0" value={localSettings.dimmedOpacity} onChange={(e) => handleChange('dimmedOpacity', parseFloat(e.target.value))} />
+                            <label htmlFor="focusScale">Scale</label>
+                            <input id="focusScale" type="number" step="0.1" value={localSettings.focusScaleMultiplier} onChange={(e) => handleChange('focusScaleMultiplier', parseFloat(e.target.value))} />
+                            <label htmlFor="fontMultH">H. Font Mult</label>
+                            <input id="fontMultH" type="number" step="0.1" value={localSettings.fontMultiplierHorizontal} onChange={(e) => handleChange('fontMultiplierHorizontal', parseFloat(e.target.value))} />
+                            <label htmlFor="fontMultV">V. Font Mult</label>
+                            <input id="fontMultV" type="number" step="0.1" value={localSettings.fontMultiplierVertical} onChange={(e) => handleChange('fontMultiplierVertical', parseFloat(e.target.value))} />
+                            <label htmlFor="boxAdjust">Box Adjust (px)</label>
+                            <input id="boxAdjust" type="number" step="1" value={localSettings.boundingBoxAdjustment} onChange={(e) => handleChange('boundingBoxAdjustment', parseInt(e.target.value, 10))} />
+                        </div>
+
+                        <h4>Interaction</h4>
+                        <div className="grid">
+                            <label htmlFor="interactMode">Mode</label>
+                            <select id="interactMode" value={localSettings.interactionMode} onChange={(e) => handleChange('interactionMode', e.target.value)}>
+                                <option value="hover">Hover</option><option value="click">Click</option>
+                            </select>
+                            <label htmlFor="delKey">Delete Key</label>
+                            <input id="delKey" value={localSettings.deleteModifierKey} onChange={(e) => handleChange('deleteModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
+                            <label htmlFor="mergeKey">Merge Key</label>
+                            <input id="mergeKey" value={localSettings.mergeModifierKey} onChange={(e) => handleChange('mergeModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
+                        </div>
                     </div>
                 </div>
                 <div className="ocr-modal-footer">

@@ -67,6 +67,7 @@ export const SERVER_SETTINGS_METADATA_DEFAULT: MetadataServerSettings = {
     hideLibraryEntries: false,
     extensionLanguages: getDefaultLanguages(),
     sourceLanguages: getDefaultLanguages(),
+    animeSourceLanguages: ['en', 'ja', 'all'],
     showNsfw: true,
     lastUsedSourceId: null,
     shouldShowOnlySourcesWithResults: true,

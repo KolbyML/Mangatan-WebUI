@@ -38,6 +38,13 @@ import { OCRManager } from '@/Mangatan/OCRManager.tsx';
 const { Browse } = loadable(() => import('@/features/browse/screens/Browse.tsx'), lazyLoadFallback);
 const { DownloadQueue } = loadable(() => import('@/features/downloads/screens/DownloadQueue.tsx'), lazyLoadFallback);
 const { Library } = loadable(() => import('@/features/library/screens/Library.tsx'), lazyLoadFallback);
+const { AnimeLibrary } = loadable(() => import('@/features/anime/screens/AnimeLibrary.tsx'), lazyLoadFallback);
+const { AnimeDetails } = loadable(() => import('@/features/anime/screens/AnimeDetails.tsx'), lazyLoadFallback);
+const { AnimeEpisode } = loadable(() => import('@/features/anime/reader/screens/AnimeEpisode.tsx'), lazyLoadFallback);
+const { AnimeSourceBrowse } = loadable(
+    () => import('@/features/anime/browse/screens/AnimeSourceBrowse.tsx'),
+    lazyLoadFallback,
+);
 const { Manga } = loadable(() => import('@/features/manga/screens/Manga.tsx'), lazyLoadFallback);
 const { SearchAll } = loadable(() => import('@/features/global-search/screens/SearchAll.tsx'), lazyLoadFallback);
 const { Settings } = loadable(() => import('@/features/settings/screens/Settings.tsx'), lazyLoadFallback);
@@ -270,16 +277,25 @@ const MainApp = () => {
 
                         <Route path={AppRoutes.sources.match}>
                             {/* TODO: deprecated - "source" and "extension" page got merged into "browse" */}
-                            <Route index element={<Navigate to={AppRoutes.browse.path(BrowseTab.SOURCES)} replace />} />
+                            <Route
+                                index
+                                element={<Navigate to={AppRoutes.browse.path(BrowseTab.MANGA_SOURCES)} replace />}
+                            />
                             <Route path={AppRoutes.sources.childRoutes.browse.match} element={<SourceMangas />} />
                             <Route path={AppRoutes.sources.childRoutes.configure.match} element={<SourceConfigure />} />
                             <Route path={AppRoutes.sources.childRoutes.searchAll.match} element={<SearchAll />} />
+                        </Route>
+                        <Route path={AppRoutes.animeSources.match}>
+                            <Route
+                                path={AppRoutes.animeSources.childRoutes.browse.match}
+                                element={<AnimeSourceBrowse />}
+                            />
                         </Route>
                         <Route path={AppRoutes.extension.match}>
                             {/* TODO: deprecated - "source" and "extension" page got merged into "browse" */}
                             <Route
                                 index
-                                element={<Navigate to={AppRoutes.browse.path(BrowseTab.EXTENSIONS)} replace />}
+                                element={<Navigate to={AppRoutes.browse.path(BrowseTab.MANGA_EXTENSIONS)} replace />}
                             />
                             <Route path={AppRoutes.extension.childRoutes.info.match} element={<ExtensionInfo />} />
                         </Route>
@@ -287,6 +303,11 @@ const MainApp = () => {
                         <Route path={AppRoutes.manga.match}>
                             <Route path={AppRoutes.manga.childRoutes.reader.match} element={null} />
                             <Route index element={<Manga />} />
+                        </Route>
+                        <Route path={AppRoutes.anime.match}>
+                            <Route path={AppRoutes.anime.childRoutes.episode.match} element={<AnimeEpisode />} />
+                            <Route path={AppRoutes.anime.childRoutes.details.match} element={<AnimeDetails />} />
+                            <Route index element={<AnimeLibrary />} />
                         </Route>
                         <Route path={AppRoutes.library.match} element={<Library />} />
                         <Route path={AppRoutes.updates.match} element={<Updates />} />

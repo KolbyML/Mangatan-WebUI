@@ -337,6 +337,9 @@ export const APP_METADATA: Record<
     sourceLanguages: {
         convert: convertToObject<string[]>,
     },
+    animeSourceLanguages: {
+        convert: convertToObject<string[]>,
+    },
     showNsfw: {
         convert: convertToBoolean,
     },
@@ -425,6 +428,7 @@ export const GLOBAL_METADATA_KEYS: AppMetadataKeys[] = [
     'hideLibraryEntries',
     'extensionLanguages',
     'sourceLanguages',
+    'animeSourceLanguages',
     'showNsfw',
     'lastUsedSourceId',
     'shouldShowOnlySourcesWithResults',

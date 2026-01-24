@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback, useRef } from 'react';
 import { Settings, DEFAULT_SETTINGS, MergeState, OcrBlock, COLOR_THEMES, ServerSettingsData, DictPopupState, OcrStatus, DialogState } from '@/Mangatan/types';
 import { requestManager } from '@/lib/requests/RequestManager';
+import { AppStorage } from '@/lib/storage/AppStorage.ts';
 
 interface OCRContextType {
     settings: Settings;
@@ -48,7 +49,7 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
 
     const [settings, setSettings] = useState<Settings>(() => {
         try {
-            const saved = localStorage.getItem('mangatan_settings_v3');
+            const saved = AppStorage.local.getItem('mangatan_settings_v3');
             if (saved) {
                 // Ensure legacy settings are cleaned up if necessary
                 const parsed = JSON.parse(saved);
@@ -139,7 +140,7 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
     }, [showDialog]);
 
     useEffect(() => {
-        localStorage.setItem('mangatan_settings_v3', JSON.stringify(settings));
+        AppStorage.local.setItem('mangatan_settings_v3', JSON.stringify(settings));
         const theme = COLOR_THEMES[settings.colorTheme] || COLOR_THEMES.blue;
         document.documentElement.style.setProperty('--ocr-accent', theme.accent);
 

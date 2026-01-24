@@ -227,12 +227,22 @@ import {
     GET_ABOUT,
 } from '@/lib/graphql/server/ServerInfoQuery.ts';
 import { GET_EXTENSION, GET_EXTENSIONS } from '@/lib/graphql/extension/ExtensionQuery.ts';
+import { GET_ANIME_EXTENSIONS } from '@/lib/graphql/extension/AnimeExtensionQuery.ts';
+import { GET_ANIME_SOURCE_BROWSE, GET_ANIME_SOURCES_LIST } from '@/lib/graphql/anime/AnimeSourceQuery.ts';
+import { GET_ANIME_LIBRARY } from '@/lib/graphql/anime/AnimeQuery.ts';
 import {
     GET_EXTENSIONS_FETCH,
     INSTALL_EXTERNAL_EXTENSION,
     UPDATE_EXTENSION,
     UPDATE_EXTENSIONS,
 } from '@/lib/graphql/extension/ExtensionMutation.ts';
+import {
+    GET_ANIME_EXTENSIONS_FETCH,
+    UPDATE_ANIME_EXTENSION,
+    UPDATE_ANIME_EXTENSIONS,
+} from '@/lib/graphql/extension/AnimeExtensionMutation.ts';
+import { UPDATE_ANIME, UPDATE_ANIMES } from '@/lib/graphql/anime/AnimeMutation.ts';
+import { GET_SOURCE_ANIMES_FETCH } from '@/lib/graphql/anime/AnimeSourceMutation.ts';
 import { GET_MIGRATABLE_SOURCES, GET_SOURCES_LIST } from '@/lib/graphql/source/SourceQuery.ts';
 import {
     DELETE_MANGA_METADATA,
@@ -435,6 +445,7 @@ export type AbortableApolloMutationResponse<Data = any> = {
 } & AbortableRequest;
 
 const EXTENSION_LIST_CACHE_KEY = 'useExtensionListFetch';
+const ANIME_EXTENSION_LIST_CACHE_KEY = 'useAnimeExtensionListFetch';
 
 const CACHE_INITIAL_PAGES_FETCHING_KEY = 'GET_SOURCE_MANGAS_FETCH_FETCHING_INITIAL_PAGES';
 const CACHE_PAGES_KEY = 'GET_SOURCE_MANGAS_FETCH_PAGES';
@@ -1456,6 +1467,58 @@ export class RequestManager {
         return [wrappedMutate, normalizedCachedResult];
     }
 
+    public useAnimeExtensionListFetch(
+        options?: MutationHookOptions<any, any>,
+    ): AbortableApolloUseMutationResponse<any, any> {
+        const [mutate, result] = this.doRequest(
+            GQLMethod.USE_MUTATION,
+            GET_ANIME_EXTENSIONS_FETCH,
+            {},
+            { refetchQueries: [GET_ANIME_EXTENSIONS], ...options },
+        );
+        const [, setUpdatedCache] = useState({});
+
+        useEffect(() => {
+            if (result.loading) {
+                return;
+            }
+
+            if (!result.data?.fetchAnimeExtensions?.extensions) {
+                return;
+            }
+
+            this.cache.cacheResponse(ANIME_EXTENSION_LIST_CACHE_KEY, undefined, result);
+            setUpdatedCache({});
+        }, [result.loading]);
+
+        const cachedResult = this.cache.getResponseFor<typeof result>(
+            ANIME_EXTENSION_LIST_CACHE_KEY,
+            undefined,
+            d(1).minutes.inWholeMilliseconds,
+        );
+
+        const normalizedCachedResult = useMemo(
+            () => (!cachedResult ? result : cachedResult),
+            [this.cache.getFetchTimestampFor(ANIME_EXTENSION_LIST_CACHE_KEY, undefined), result.loading],
+        );
+
+        const wrappedMutate = async (mutateOptions: Parameters<typeof mutate>[0]) => {
+            if (cachedResult) {
+                return normalizedCachedResult;
+            }
+
+            return mutate(mutateOptions);
+        };
+
+        return [wrappedMutate, normalizedCachedResult];
+    }
+
+    public useGetAnimeExtensionList(
+        options?: QueryHookOptions<any, any>,
+    ): AbortableApolloUseQueryResponse<any, any> {
+        return this.doRequest(GQLMethod.USE_QUERY, GET_ANIME_EXTENSIONS, {}, options);
+    }
+
     public installExternalExtension(
         extensionFile: File,
         options?: MutationOptions<InstallExternalExtensionMutation, InstallExternalExtensionMutationVariables>,
@@ -1594,6 +1657,44 @@ export class RequestManager {
         return result;
     }
 
+    public updateAnimeExtension(
+        id: string,
+        patch: any,
+        options?: MutationOptions<any, any>,
+    ): AbortableApolloMutationResponse<any> {
+        const result = this.doRequest<any, any>(
+            GQLMethod.MUTATION,
+            UPDATE_ANIME_EXTENSION,
+            { input: { id, patch } },
+            options,
+        );
+
+        result.response.then(() => {
+            this.cache.clearFor(this.cache.getKeyFor(ANIME_EXTENSION_LIST_CACHE_KEY, undefined));
+        });
+
+        return result;
+    }
+
+    public updateAnimeExtensions(
+        ids: string[],
+        patch: any,
+        options?: MutationOptions<any, any>,
+    ): AbortableApolloMutationResponse<any> {
+        const result = this.doRequest<any, any>(
+            GQLMethod.MUTATION,
+            UPDATE_ANIME_EXTENSIONS,
+            { input: { ids, patch } },
+            options,
+        );
+
+        result.response.then(() => {
+            this.cache.clearFor(this.cache.getKeyFor(ANIME_EXTENSION_LIST_CACHE_KEY, undefined));
+        });
+
+        return result;
+    }
+
     public updateExtensions(
         ids: string[],
         { isObsolete = false, ...patch }: UpdateExtensionPatchInput & { isObsolete?: boolean },
@@ -1668,6 +1769,21 @@ export class RequestManager {
         options?: QueryHookOptions<GetSourcesListQuery, GetSourcesListQueryVariables>,
     ): AbortableApolloUseQueryResponse<GetSourcesListQuery, GetSourcesListQueryVariables> {
         return this.doRequest(GQLMethod.USE_QUERY, GET_SOURCES_LIST, {}, options);
+    }
+
+    public useGetAnimeSourceList(options?: QueryHookOptions<any, any>): AbortableApolloUseQueryResponse<any, any> {
+        return this.doRequest(GQLMethod.USE_QUERY, GET_ANIME_SOURCES_LIST, {}, options);
+    }
+
+    public useGetAnimeLibrary(options?: QueryHookOptions<any, any>): AbortableApolloUseQueryResponse<any, any> {
+        return this.doRequest(GQLMethod.USE_QUERY, GET_ANIME_LIBRARY, {}, options);
+    }
+
+    public useGetAnimeSourceBrowse(
+        id: string,
+        options?: QueryHookOptions<any, any>,
+    ): AbortableApolloUseQueryResponse<any, any> {
+        return this.doRequest(GQLMethod.USE_QUERY, GET_ANIME_SOURCE_BROWSE, { id }, options);
     }
 
     public useGetSource<Data, Variables extends OperationVariables>(
@@ -2009,6 +2125,12 @@ export class RequestManager {
         );
     }
 
+    public useGetSourceAnimes(
+        options?: MutationHookOptions<any, any>,
+    ): AbortableApolloUseMutationResponse<any, any> {
+        return this.doRequest(GQLMethod.USE_MUTATION, GET_SOURCE_ANIMES_FETCH, {}, options);
+    }
+
     public useGetManga<Data, Variables extends OperationVariables = OperationVariables>(
         document: DocumentNode | TypedDocumentNode<Data, Variables>,
         mangaId: number | string,
@@ -2172,6 +2294,44 @@ export class RequestManager {
         result.response.then(() => {
             this.graphQLClient.client.cache.evict({ broadcast: true, fieldName: 'categories' });
             this.graphQLClient.client.cache.evict({ broadcast: true, fieldName: 'mangas' });
+        });
+
+        return result;
+    }
+
+    public updateAnime(
+        id: number,
+        patch: { inLibrary?: boolean },
+        options?: MutationOptions<any, any>,
+    ): AbortableApolloMutationResponse<any> {
+        const result = this.doRequest<any, any>(
+            GQLMethod.MUTATION,
+            UPDATE_ANIME,
+            { input: { id, patch } },
+            options,
+        );
+
+        result.response.then(() => {
+            this.graphQLClient.client.cache.evict({ broadcast: true, fieldName: 'animes' });
+        });
+
+        return result;
+    }
+
+    public updateAnimes(
+        ids: number[],
+        patch: { inLibrary?: boolean },
+        options?: MutationOptions<any, any>,
+    ): AbortableApolloMutationResponse<any> {
+        const result = this.doRequest<any, any>(
+            GQLMethod.MUTATION,
+            UPDATE_ANIMES,
+            { input: { ids, patch } },
+            options,
+        );
+
+        result.response.then(() => {
+            this.graphQLClient.client.cache.evict({ broadcast: true, fieldName: 'animes' });
         });
 
         return result;
@@ -3190,20 +3350,27 @@ export class RequestManager {
     ): AbortableApolloUseMutationResponse<UpdateServerSettingsMutation, UpdateServerSettingsMutationVariables> {
         const [mutate, result] = this.doRequest(GQLMethod.USE_MUTATION, UPDATE_SERVER_SETTINGS, undefined, options);
 
-        const wrappedMutate = async (mutateOptions: Parameters<typeof mutate>[0]) =>
-            mutate({
+        const wrappedMutate = async (mutateOptions: Parameters<typeof mutate>[0]) => {
+            const cachedSettings =
+                this.graphQLClient.client.readQuery<GetServerSettingsQuery>({
+                    query: GET_SERVER_SETTINGS,
+                })?.settings ?? {};
+
+            return mutate({
                 optimisticResponse: {
                     __typename: 'Mutation',
                     setSettings: {
                         __typename: 'SetSettingsPayload',
                         settings: {
                             __typename: 'SettingsType',
+                            ...cachedSettings,
                             ...(mutateOptions?.variables?.input.settings ?? {}),
                         } as SettingsType,
                     },
                 },
                 ...mutateOptions,
             });
+        };
 
         return [wrappedMutate, result];
     }

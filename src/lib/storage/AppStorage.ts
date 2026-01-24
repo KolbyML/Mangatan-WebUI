@@ -9,8 +9,12 @@
 // eslint-disable-next-line max-classes-per-file
 import { jsonSaveParse } from '@/lib/HelperFunctions.ts';
 
+type StorageBackend = typeof window.localStorage | null;
+
 export class Storage {
-    constructor(private readonly storage: typeof window.localStorage) {}
+    private readonly memory = new Map<string, string>();
+
+    constructor(private readonly storage: StorageBackend) {}
 
     parseValue<T>(value: string | null, defaultValue: T): T {
         if (value === null) {
@@ -27,7 +31,15 @@ export class Storage {
     }
 
     getItem(key: string): string | null {
-        return this.storage.getItem(key);
+        if (!this.storage) {
+            return this.memory.get(key) ?? null;
+        }
+
+        try {
+            return this.storage.getItem(key);
+        } catch {
+            return this.memory.get(key) ?? null;
+        }
     }
 
     getItemParsed<T>(key: string, defaultValue: T): T {
@@ -52,7 +64,15 @@ export class Storage {
         };
 
         if (value === undefined) {
-            this.storage.removeItem(key);
+            if (this.storage) {
+                try {
+                    this.storage.removeItem(key);
+                } catch {
+                    this.memory.delete(key);
+                }
+            } else {
+                this.memory.delete(key);
+            }
             fireEvent(undefined);
             return;
         }
@@ -60,7 +80,15 @@ export class Storage {
         const stringify = typeof value !== 'string';
         const valueToStore = stringify ? JSON.stringify(value) : value;
 
-        this.storage.setItem(key, valueToStore);
+        if (this.storage) {
+            try {
+                this.storage.setItem(key, valueToStore);
+            } catch {
+                this.memory.set(key, valueToStore);
+            }
+        } else {
+            this.memory.set(key, valueToStore);
+        }
         fireEvent(valueToStore as string);
     }
 
@@ -72,7 +100,15 @@ export class Storage {
 }
 
 export class AppStorage {
-    static readonly local: Storage = new Storage(window.localStorage);
+    static readonly local: Storage = new Storage(AppStorage.getSafeStorage(() => window.localStorage));
 
-    static readonly session: Storage = new Storage(window.sessionStorage);
+    static readonly session: Storage = new Storage(AppStorage.getSafeStorage(() => window.sessionStorage));
+
+    private static getSafeStorage(getter: () => StorageBackend): StorageBackend {
+        try {
+            return getter();
+        } catch {
+            return null;
+        }
+    }
 }

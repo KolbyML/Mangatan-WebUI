@@ -25,6 +25,7 @@ export const convertSettingsToMetadata = (
     migrateSortSettings: JSON.stringify(settings.migrateSortSettings),
     extensionLanguages: JSON.stringify(settings.extensionLanguages),
     sourceLanguages: JSON.stringify(settings.sourceLanguages),
+    animeSourceLanguages: JSON.stringify(settings.animeSourceLanguages),
 });
 
 const getMetadataServerSettingsWithDefaultFallback = (

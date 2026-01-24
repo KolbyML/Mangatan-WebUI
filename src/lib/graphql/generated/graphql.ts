@@ -1680,6 +1680,7 @@ export type PartialSettingsType = Settings & {
   excludeNotStarted?: Maybe<Scalars['Boolean']['output']>;
   excludeUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
   extensionRepos?: Maybe<Array<Scalars['String']['output']>>;
+  animeExtensionRepos?: Maybe<Array<Scalars['String']['output']>>;
   flareSolverrAsResponseFallback?: Maybe<Scalars['Boolean']['output']>;
   flareSolverrEnabled?: Maybe<Scalars['Boolean']['output']>;
   flareSolverrSessionName?: Maybe<Scalars['String']['output']>;
@@ -1770,6 +1771,7 @@ export type PartialSettingsTypeInput = {
   excludeNotStarted?: InputMaybe<Scalars['Boolean']['input']>;
   excludeUnreadChapters?: InputMaybe<Scalars['Boolean']['input']>;
   extensionRepos?: InputMaybe<Array<Scalars['String']['input']>>;
+  animeExtensionRepos?: InputMaybe<Array<Scalars['String']['input']>>;
   flareSolverrAsResponseFallback?: InputMaybe<Scalars['Boolean']['input']>;
   flareSolverrEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   flareSolverrSessionName?: InputMaybe<Scalars['String']['input']>;
@@ -2214,6 +2216,7 @@ export type Settings = {
   excludeNotStarted?: Maybe<Scalars['Boolean']['output']>;
   excludeUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
   extensionRepos?: Maybe<Array<Scalars['String']['output']>>;
+  animeExtensionRepos?: Maybe<Array<Scalars['String']['output']>>;
   flareSolverrAsResponseFallback?: Maybe<Scalars['Boolean']['output']>;
   flareSolverrEnabled?: Maybe<Scalars['Boolean']['output']>;
   flareSolverrSessionName?: Maybe<Scalars['String']['output']>;
@@ -2357,6 +2360,7 @@ export type SettingsType = Settings & {
   excludeNotStarted: Scalars['Boolean']['output'];
   excludeUnreadChapters: Scalars['Boolean']['output'];
   extensionRepos: Array<Scalars['String']['output']>;
+  animeExtensionRepos: Array<Scalars['String']['output']>;
   flareSolverrAsResponseFallback: Scalars['Boolean']['output'];
   flareSolverrEnabled: Scalars['Boolean']['output'];
   flareSolverrSessionName: Scalars['String']['output'];

@@ -12,7 +12,7 @@ import Card from '@mui/material/Card';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Stack from '@mui/material/Stack';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
@@ -52,6 +52,7 @@ export const SourceCard: React.FC<IProps> = (props: IProps) => {
     } = source;
 
     const { isPinned } = useGetSourceMetadata(source);
+    const navigate = useNavigate();
 
     const sourceName = Sources.isLocalSource(source) ? t('source.local_source.title') : name;
 
@@ -101,9 +102,12 @@ export const SourceCard: React.FC<IProps> = (props: IProps) => {
                         <Button
                             {...MUIUtil.preventRippleProp()}
                             variant="outlined"
-                            component={Link}
-                            to={AppRoutes.sources.childRoutes.browse.path(id)}
-                            state={{ contentType: SourceContentType.LATEST, clearCache: true }}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                navigate(AppRoutes.sources.childRoutes.browse.path(id), {
+                                    state: { contentType: SourceContentType.LATEST, clearCache: true },
+                                });
+                            }}
                         >
                             {t('global.button.latest')}
                         </Button>
