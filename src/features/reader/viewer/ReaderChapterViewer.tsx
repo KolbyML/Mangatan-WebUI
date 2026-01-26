@@ -48,7 +48,7 @@ import { READER_DEFAULT_PAGES_STATE } from '@/features/reader/stores/ReaderPages
 import { getReaderChaptersStore } from '@/features/reader/stores/ReaderStore.ts';
 
 // Import Context to respect "Mobile Mode" setting
-import { useOCR } from '@/Mangatan/context/OCRContext';
+import { useOCR } from '@/Manatan/context/OCRContext';
 
 const BaseReaderChapterViewer = ({
     currentPageIndex,

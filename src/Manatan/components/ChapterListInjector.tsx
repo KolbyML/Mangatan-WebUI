@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ChapterProcessButton } from './ChapterProcessButton';
-import { useOCR } from '@/Mangatan/context/OCRContext';
-import { AuthCredentials } from '@/Mangatan/utils/api';
+import { useOCR } from '@/Manatan/context/OCRContext';
+import { AuthCredentials } from '@/Manatan/utils/api';
 
 export const ChapterListInjector: React.FC = () => {
     const { serverSettings, settings } = useOCR();

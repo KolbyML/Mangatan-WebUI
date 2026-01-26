@@ -1,9 +1,9 @@
 import React, { useRef, useLayoutEffect, useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useOCR } from '@/Mangatan/context/OCRContext';
-import { findNotes, addNote, guiBrowse, imageUrlToBase64Webp } from '@/Mangatan/utils/anki';
-import { DictionaryResult } from '@/Mangatan/types';
-import { CropperModal } from '@/Mangatan/components/CropperModal';
+import { useOCR } from '@/Manatan/context/OCRContext';
+import { findNotes, addNote, guiBrowse, imageUrlToBase64Webp } from '@/Manatan/utils/anki';
+import { DictionaryResult } from '@/Manatan/types';
+import { CropperModal } from '@/Manatan/components/CropperModal';
 
 export const StructuredContent: React.FC<{ contentString: string }> = ({ contentString }) => {
     const parsedData = useMemo(() => {
@@ -242,7 +242,7 @@ const AnkiButtons: React.FC<{
         }).join('');
 
         // Collect all tags from all definitions
-        const allTags = new Set(['mangatan']);
+        const allTags = new Set(['manatan']);
         entry.definitions.forEach(def => def.tags.forEach(t => allTags.add(t)));
         // Safely add termTags by checking if they are strings or objects
         entry.termTags?.forEach((t: any) => {
@@ -270,7 +270,7 @@ const AnkiButtons: React.FC<{
                 if (croppedBase64) {
                     pictureData = {
                         data: croppedBase64.split(';base64,')[1],
-                        filename: `mangatan_card_${Date.now()}.webp`,
+                        filename: `manatan_card_${Date.now()}.webp`,
                         fields: [imgField]
                     };
                 } else {
@@ -278,7 +278,7 @@ const AnkiButtons: React.FC<{
                     if (b64) {
                         pictureData = {
                             data: b64.split(';base64,')[1],
-                            filename: `mangatan_card_${Date.now()}.webp`,
+                            filename: `manatan_card_${Date.now()}.webp`,
                             fields: [imgField]
                         };
                     }

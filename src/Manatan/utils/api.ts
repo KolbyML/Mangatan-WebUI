@@ -283,10 +283,26 @@ export const installAppUpdate = async () => {
     return apiRequest('/api/system/install-update', { method: 'POST' });
 };
 
+const UPDATE_RELEASE_URLS = [
+    'https://api.github.com/repos/KolbyML/Manatan/releases/latest',
+    'https://api.github.com/repos/KolbyML/Mangatan/releases/latest',
+];
+
+const fetchLatestRelease = async () => {
+    for (const url of UPDATE_RELEASE_URLS) {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const json = await res.json();
+        if (json?.tag_name) return json;
+    }
+
+    return null;
+};
+
 export const checkForUpdates = async (currentVersion: string, variant: string) => {
     try {
-        const res = await fetch('https://api.github.com/repos/KolbyML/Mangatan/releases/latest');
-        const json = await res.json();
+        const json = await fetchLatestRelease();
+        if (!json) return { hasUpdate: false };
         const latestTag = json.tag_name?.replace(/^v/, '');
         const current = currentVersion.replace(/^v/, '');
         

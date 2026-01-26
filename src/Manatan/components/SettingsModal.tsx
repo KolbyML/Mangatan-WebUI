@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useOCR } from '@/Mangatan/context/OCRContext';
+import { useOCR } from '@/Manatan/context/OCRContext';
 import { AppStorage } from '@/lib/storage/AppStorage.ts';
-import { COLOR_THEMES, DEFAULT_SETTINGS } from '@/Mangatan/types';
-import { apiRequest, getAppVersion, checkForUpdates, triggerAppUpdate, installAppUpdate } from '@/Mangatan/utils/api';
+import { COLOR_THEMES, DEFAULT_SETTINGS } from '@/Manatan/types';
+import { apiRequest, getAppVersion, checkForUpdates, triggerAppUpdate, installAppUpdate } from '@/Manatan/utils/api';
 import { DictionaryManager } from './DictionaryManager';
-import { getAnkiVersion, getDeckNames, getModelNames, getModelFields } from '@/Mangatan/utils/anki';
+import { getAnkiVersion, getDeckNames, getModelNames, getModelFields } from '@/Manatan/utils/anki';
 
 const checkboxLabelStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', marginBottom: '8px', cursor: 'pointer', textAlign: 'left', 
@@ -281,7 +281,8 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         }
     };
 
-    const isNativeApp = typeof navigator !== 'undefined' && navigator.userAgent.includes('MangatanNative');
+    const isNativeApp = typeof navigator !== 'undefined'
+        && (navigator.userAgent.includes('MangatanNative') || navigator.userAgent.includes('ManatanNative'));
     const isiOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     const showDicts = isNativeApp || localSettings.enableYomitan;
@@ -342,7 +343,12 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={e => handleChange('enableYomitan', e.target.checked)} 
                                 style={checkboxInputStyle} 
                             />
-                            Enable Popup Dictionary
+                            <div>
+                                Enable Popup Dictionary
+                                <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                    Shows dictionary popups on hover or tap.
+                                </div>
+                            </div>
                         </label>
                         
                         <div style={{
@@ -355,16 +361,19 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                  {/* Result Grouping Dropdown */}
                                  <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                     <label htmlFor="groupingMode" style={{fontSize: '0.9em', color: '#ccc'}}>Result Grouping</label>
-                                    <select
-                                        id="groupingMode"
-                                        value={localSettings.resultGroupingMode || 'grouped'}
-                                        onChange={(e) => handleChange('resultGroupingMode', e.target.value)}
-                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #444', background: '#222', color: 'white' }}
-                                    >
-                                        <option value="grouped">Group by Term</option>
-                                        <option value="flat">No Grouping</option>
-                                    </select>
-                                 </div>
+                                     <select
+                                         id="groupingMode"
+                                         value={localSettings.resultGroupingMode || 'grouped'}
+                                         onChange={(e) => handleChange('resultGroupingMode', e.target.value)}
+                                         style={{ padding: '6px', borderRadius: '4px', border: '1px solid #444', background: '#222', color: 'white' }}
+                                     >
+                                         <option value="grouped">Group by Term</option>
+                                         <option value="flat">No Grouping</option>
+                                     </select>
+                                     <div style={{ fontSize: '0.85em', color: '#aaa' }}>
+                                         Group results by term or list every entry.
+                                     </div>
+                                  </div>
 
                                 {isInstalling && (
                                     <div style={{ fontSize: '0.9em', color: '#aaa', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -442,6 +451,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                             onChange={(e) => handleChange('ankiConnectUrl', e.target.value)} 
                                             placeholder="http://127.0.0.1:8765"
                                         />
+                                        <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                            Address where AnkiConnect is listening.
+                                        </div>
                                         
                                         <label htmlFor="ankiQuality">Image Quality</label>
                                         <input 
@@ -454,6 +466,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                             onChange={(e) => handleChange('ankiImageQuality', parseFloat(e.target.value))} 
                                             placeholder="0.92"
                                         />
+                                        <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                            Image compression quality for screenshots sent to Anki (0-1).
+                                        </div>
                                     </div>
 
                                     <div style={{ marginBottom: '15px', marginTop: '10px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -505,6 +520,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                     <option value="">Select a Deck...</option>
                                                     {ankiDecks.map(d => <option key={d} value={d}>{d}</option>)}
                                                 </select>
+                                                <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                                    Deck where new cards will be added.
+                                                </div>
 
                                                 <label htmlFor="ankiModel">Card Type</label>
                                                 <select 
@@ -522,12 +540,18 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                     <option value="">Select Card Type...</option>
                                                     {ankiModels.map(m => <option key={m} value={m}>{m}</option>)}
                                                 </select>
+                                                <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                                    Note type used when creating cards.
+                                                </div>
                                             </div>
 
                                             {/* Field Mapping Section */}
                                             {localSettings.ankiModel && currentModelFields.length > 0 && (
                                                 <div style={{ marginTop: '20px' }}>
                                                     <h4 style={{marginBottom: '10px', color: '#ddd'}}>Field Mapping</h4>
+                                                    <div style={{ fontSize: '0.85em', color: '#aaa', marginBottom: '10px' }}>
+                                                        Map OCR and dictionary content to your Anki fields.
+                                                    </div>
                                                     
                                                     {/* If built-in dictionary is enabled, show full table mapping */}
                                                     {localSettings.enableYomitan ? (
@@ -570,6 +594,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                                 <option value="">(None)</option>
                                                                 {currentModelFields.map(f => <option key={f} value={f}>{f}</option>)}
                                                             </select>
+                                                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                                                Field where the selected sentence will be stored.
+                                                            </div>
 
                                                             <label>Image Field</label>
                                                             <select
@@ -579,6 +606,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                                 <option value="">(None)</option>
                                                                 {currentModelFields.map(f => <option key={f} value={f}>{f}</option>)}
                                                             </select>
+                                                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                                                Field where the screenshot image will be stored.
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -590,6 +620,39 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         </div>
                         </>
                     )}
+
+                    <h3>General Settings</h3>
+                    <div style={sectionBoxStyle}>
+                        <div className="checkboxes">
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.mobileMode} onChange={(e) => handleChange('mobileMode', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Mobile Mode
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Optimizes layout and gestures for smaller screens.
+                                    </div>
+                                </div>
+                            </label>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.debugMode} onChange={(e) => handleChange('debugMode', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Debug Mode
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Shows extra diagnostics and debug overlays.
+                                    </div>
+                                </div>
+                            </label>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.disableStatusIcon} onChange={(e) => handleChange('disableStatusIcon', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Disable Status Icon
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Hides the floating status indicator in readers.
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
 
                     <h3>Anime Settings</h3>
                     <div style={sectionBoxStyle}>
@@ -604,6 +667,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 value={localSettings.subtitleFontSize}
                                 onChange={(e) => handleChange('subtitleFontSize', parseInt(e.target.value, 10))}
                             />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Controls subtitle text size in the video player.
+                            </div>
                             <label htmlFor="subtitleFontWeight">Subtitle Thickness</label>
                             <input
                                 id="subtitleFontWeight"
@@ -614,6 +680,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 value={localSettings.subtitleFontWeight ?? 600}
                                 onChange={(e) => handleChange('subtitleFontWeight', parseInt(e.target.value, 10))}
                             />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Higher values make subtitles bolder and easier to read.
+                            </div>
                             <label htmlFor="jimakuApiKey">Jimaku API Key</label>
                             <input
                                 id="jimakuApiKey"
@@ -622,9 +691,16 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 onChange={(e) => handleChange('jimakuApiKey', e.target.value)}
                                 placeholder="Paste Jimaku API key"
                             />
-                        </div>
-                        <div style={{ fontSize: '0.85em', color: '#aaa' }}>
-                            Used to fetch Jimaku subtitles for the current episode.
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Used to fetch Jimaku subtitles for the current episode.
+                                <div>
+                                    Get an API key from <a href="https://jimaku.cc" target="_blank" rel="noreferrer">jimaku.cc</a>
+                                </div>
+                                <div>
+                                    1. You can get a free key by signing up on the site: <a href="https://jimaku.cc/account" target="_blank" rel="noreferrer">https://jimaku.cc/account</a>
+                                </div>
+                                <div>2. Generate an API key under the "API" heading and copy it</div>
+                            </div>
                         </div>
                     </div>
 
@@ -632,12 +708,33 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     <div style={sectionBoxStyle}>
                         <h4 style={{ marginTop: 0 }}>General</h4>
                         <div className="checkboxes">
-                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />Enable Text Overlay</label>
-                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.soloHoverMode} onChange={(e) => handleChange('soloHoverMode', e.target.checked)} style={checkboxInputStyle} />Solo Hover</label>
-                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.addSpaceOnMerge} onChange={(e) => handleChange('addSpaceOnMerge', e.target.checked)} style={checkboxInputStyle} />Add Space on Merge</label>
-                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.mobileMode} onChange={(e) => handleChange('mobileMode', e.target.checked)} style={checkboxInputStyle} />Mobile Mode</label>
-                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.debugMode} onChange={(e) => handleChange('debugMode', e.target.checked)} style={checkboxInputStyle} />Debug Mode</label>
-                            <label style={checkboxLabelStyle}><input type="checkbox" checked={localSettings.disableStatusIcon} onChange={(e) => handleChange('disableStatusIcon', e.target.checked)} style={checkboxInputStyle} />Disable Status Icon</label>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.enableOverlay} onChange={(e) => handleChange('enableOverlay', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Enable Text Overlay
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Shows OCR text overlays while reading manga.
+                                    </div>
+                                </div>
+                            </label>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.soloHoverMode} onChange={(e) => handleChange('soloHoverMode', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Solo Hover
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Only show the active hover box instead of all boxes.
+                                    </div>
+                                </div>
+                            </label>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.addSpaceOnMerge} onChange={(e) => handleChange('addSpaceOnMerge', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Add Space on Merge
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Inserts a space when merging multiple text boxes.
+                                    </div>
+                                </div>
+                            </label>
                         </div>
 
                         <h4>Visuals</h4>
@@ -646,24 +743,45 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             <select id="colorTheme" value={localSettings.colorTheme} onChange={(e) => handleChange('colorTheme', e.target.value)}>
                                 {Object.keys(COLOR_THEMES).map((k) => <option key={k} value={k}>{k}</option>)}
                             </select>
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Controls overlay colors and highlight styling.
+                            </div>
                             <label htmlFor="textOrientation">Orientation</label>
                             <select id="textOrientation" value={localSettings.textOrientation} onChange={(e) => handleChange('textOrientation', e.target.value)}>
                                 <option value="smart">Smart</option><option value="forceHorizontal">Horizontal</option><option value="forceVertical">Vertical</option>
                             </select>
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Preferred reading orientation for OCR text.
+                            </div>
                         </div>
 
                         <h4>Fine Tuning</h4>
                         <div className="grid">
                             <label htmlFor="dimmedOpacity">Opacity</label>
                             <input id="dimmedOpacity" type="number" step="0.1" max="1" min="0" value={localSettings.dimmedOpacity} onChange={(e) => handleChange('dimmedOpacity', parseFloat(e.target.value))} />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Background dim amount for non-focused text.
+                            </div>
                             <label htmlFor="focusScale">Scale</label>
                             <input id="focusScale" type="number" step="0.1" value={localSettings.focusScaleMultiplier} onChange={(e) => handleChange('focusScaleMultiplier', parseFloat(e.target.value))} />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Zoom multiplier for focused text.
+                            </div>
                             <label htmlFor="fontMultH">H. Font Mult</label>
                             <input id="fontMultH" type="number" step="0.1" value={localSettings.fontMultiplierHorizontal} onChange={(e) => handleChange('fontMultiplierHorizontal', parseFloat(e.target.value))} />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Font size multiplier for horizontal text.
+                            </div>
                             <label htmlFor="fontMultV">V. Font Mult</label>
                             <input id="fontMultV" type="number" step="0.1" value={localSettings.fontMultiplierVertical} onChange={(e) => handleChange('fontMultiplierVertical', parseFloat(e.target.value))} />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Font size multiplier for vertical text.
+                            </div>
                             <label htmlFor="boxAdjust">Box Adjust (px)</label>
                             <input id="boxAdjust" type="number" step="1" value={localSettings.boundingBoxAdjustment} onChange={(e) => handleChange('boundingBoxAdjustment', parseInt(e.target.value, 10))} />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Expands or shrinks OCR bounding boxes.
+                            </div>
                         </div>
 
                         <h4>Interaction</h4>
@@ -672,10 +790,19 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             <select id="interactMode" value={localSettings.interactionMode} onChange={(e) => handleChange('interactionMode', e.target.value)}>
                                 <option value="hover">Hover</option><option value="click">Click</option>
                             </select>
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Choose how text boxes activate in the reader.
+                            </div>
                             <label htmlFor="delKey">Delete Key</label>
                             <input id="delKey" value={localSettings.deleteModifierKey} onChange={(e) => handleChange('deleteModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Modifier key used to delete OCR boxes.
+                            </div>
                             <label htmlFor="mergeKey">Merge Key</label>
                             <input id="mergeKey" value={localSettings.mergeModifierKey} onChange={(e) => handleChange('mergeModifierKey', e.target.value)} placeholder="Alt, Control, Shift..." />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Modifier key used to merge OCR boxes.
+                            </div>
                         </div>
                     </div>
                 </div>

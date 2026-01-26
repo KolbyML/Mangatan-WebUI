@@ -119,7 +119,7 @@ const doesLanguageOfChangeMeetTranslatePercentThreshold = (
     change: WeblateChangeResult,
     stats: WeblateLanguageStatistic[],
 ): boolean => {
-    // format: 'https://hosted.weblate.org/api/translations/suwayomi/mangatan-webui/ar/'
+    // format: 'https://hosted.weblate.org/api/translations/suwayomi/manatan-webui/ar/'
     const code = change.translation.split('/').slice(-2)[0];
     const langaugeStats = getWeblateLanguageStatsFor(code, stats);
 
@@ -233,7 +233,7 @@ export const createTranslationChangelog = async (
     const timestampAfter = `${afterDate}T00:00:00.000Z`;
     const timestampBefore = `${beforeDate}T00:00:00.000Z`;
 
-    const url = `https://hosted.weblate.org/api/components/suwayomi/mangatan-webui/changes/?timestamp_after=${timestampAfter}&timestamp_before=${timestampBefore}&${creditRelevantActions.map((action) => `action=${action}`).join('&')}`;
+    const url = `https://hosted.weblate.org/api/components/suwayomi/manatan-webui/changes/?timestamp_after=${timestampAfter}&timestamp_before=${timestampBefore}&${creditRelevantActions.map((action) => `action=${action}`).join('&')}`;
 
     const contributorsForRange = await getContributorsForRange(url);
     const knownContributorsByLanguage = await getKnownContributorsByLanguage();
@@ -264,7 +264,7 @@ export const createTranslationChangelog = async (
 
     let changelog =
         '### Translations\n' +
-        'Feel free to translate the project on [Weblate](https://hosted.weblate.org/projects/suwayomi/mangatan-webui/)\n' +
+        'Feel free to translate the project on [Weblate](https://hosted.weblate.org/projects/kolbyml/manatan-webui/)\n' +
         '\n' +
         'Thanks to everyone that contributed to the translation of this project.\n\n';
 

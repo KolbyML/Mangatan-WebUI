@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { useOCR } from '@/Mangatan/context/OCRContext';
-import { OcrStatus, OcrBlock } from '@/Mangatan/types'; 
-import { apiRequest } from '@/Mangatan/utils/api';
-import { TextBox } from '@/Mangatan/components/TextBox';
-import { StatusIcon } from '@/Mangatan/components/StatusIcon';
+import { useOCR } from '@/Manatan/context/OCRContext';
+import { OcrStatus, OcrBlock } from '@/Manatan/types'; 
+import { apiRequest } from '@/Manatan/utils/api';
+import { TextBox } from '@/Manatan/components/TextBox';
+import { StatusIcon } from '@/Manatan/components/StatusIcon';
 // Ensure this path matches your file structure!
 import { useReaderOverlayStore } from '@/features/reader/stores/ReaderStore'; 
 

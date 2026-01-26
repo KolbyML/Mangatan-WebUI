@@ -239,7 +239,7 @@ export async function updateLastCard(
 
         // Add new image
         updatePayload.note.picture = {
-            filename: `mangatan_${id}.webp`,
+            filename: `manatan_${id}.webp`,
             data: imageData.split(";base64,")[1],
             fields: [pictureField],
         };

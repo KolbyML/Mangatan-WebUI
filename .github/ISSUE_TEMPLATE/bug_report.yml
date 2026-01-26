@@ -1,5 +1,5 @@
 name: 🐞 Bug report
-description: Report a bug in Mangatan-WebUI
+description: Report a bug in Manatan-WebUI
 labels: [bug]
 body:
 
@@ -88,10 +88,10 @@ body:
     required: true
 
 - type: input
-  id: mangatan-webui-version
+  id: manatan-webui-version
   attributes:
-    label: Mangatan-WebUI version
-    description: You can find your Mangatan-WebUI version in **More → About**.
+    label: Manatan-WebUI version
+    description: You can find your Manatan-WebUI version in **More → About**.
     placeholder: |
       Example: "r1689 STABLE | r2401 PREVIEW"
   validations:
@@ -101,7 +101,7 @@ body:
   id: client-browser
   attributes:
     label: Used web browser
-    description: The browser which is used to open Mangatan-WebUI
+    description: The browser which is used to open Manatan-WebUI
     placeholder: |
       Example: "Chrome 134.0.6998.118 (64-Bit) | FireFox 136.0.2 (64-Bit) | Electron v35.0.2"
   validations:
@@ -111,7 +111,7 @@ body:
   id: client-os
   attributes:
     label: Client operating system
-    description: The system on which the Mangatan-WebUI is running on
+    description: The system on which the Manatan-WebUI is running on
     placeholder: |
       Example: "Windows 11 Pro 24H2 | Ubuntu 24.04.2 LTS"
   validations:
@@ -133,7 +133,7 @@ body:
     options:
     - label: I have searched the existing issues and this is a new ticket, **NOT** a duplicate or related to another open or closed issue.
       required: true
-    - label: I have checked the [ongoing preview changelog](https://github.com/Suwayomi/Mangatan-WebUI/issues/749) and this bug has **NOT** been listed as fixed
+    - label: I have checked the [ongoing preview changelog](https://github.com/KolbyML/Manatan-WebUI/issues/749) and this bug has **NOT** been listed as fixed
       required: true
     - label: This bug is UI related and does not belong to the server. If in doubt, create the request in the [Suwayomi-Server repository](https://github.com/Suwayomi/Suwayomi-Server/issues).
       required: true
@@ -141,7 +141,7 @@ body:
       required: true
     - label: I have gone through the [Suwayomi-Server wiki](https://github.com/Suwayomi/Suwayomi-Server/wiki) and [Discord FAQ and support](https://discord.gg/DDZdqZWaHA).
       required: true
-    - label: I have updated the Mangatan-WebUI and Suwayomi-Server to the latest versions (**[Mangatan-WebUI](https://github.com/suwayomi/mangatan-webui/releases/latest)**, **[Suwayomi-Server](https://github.com/suwayomi/suwayomi-server/releases/latest)**).
+    - label: I have updated the Manatan-WebUI and Suwayomi-Server to the latest versions (**[Manatan-WebUI](https://github.com/kolbyml/manatan-webui/releases/latest)**, **[Suwayomi-Server](https://github.com/suwayomi/suwayomi-server/releases/latest)**).
       required: true
     - label: I have filled out all of the requested information in this form, including specific version numbers.
       required: true

@@ -1,9 +1,9 @@
 import React, { useRef, useState, useLayoutEffect, useEffect, memo } from 'react';
-import { COLOR_THEMES, OcrBlock } from '@/Mangatan/types';
-import { useOCR } from '@/Mangatan/context/OCRContext';
-import { cleanPunctuation, lookupYomitan } from '@/Mangatan/utils/api';
-import { updateLastCard } from '@/Mangatan/utils/anki';
-import { CropperModal } from '@/Mangatan/components/CropperModal';
+import { COLOR_THEMES, OcrBlock } from '@/Manatan/types';
+import { useOCR } from '@/Manatan/context/OCRContext';
+import { cleanPunctuation, lookupYomitan } from '@/Manatan/utils/api';
+import { updateLastCard } from '@/Manatan/utils/anki';
+import { CropperModal } from '@/Manatan/components/CropperModal';
 import { createPortal } from 'react-dom';
 import { makeToast } from '@/base/utils/Toast';
 
@@ -299,7 +299,7 @@ export const TextBox: React.FC<{
                     if (imgField && imgField.trim()) {
                         updatePayload.note.fields[imgField] = ''; 
                         updatePayload.note.picture = {
-                            filename: `mangatan_${id}.webp`,
+                            filename: `manatan_${id}.webp`,
                             data: croppedImage.split(';base64,')[1],
                             fields: [imgField]
                         };

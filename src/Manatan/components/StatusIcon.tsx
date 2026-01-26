@@ -1,6 +1,6 @@
 import React from 'react';
-import { useOCR } from '@/Mangatan/context/OCRContext'; 
-import { OcrStatus } from '@/Mangatan/types'; // 修正: typesからインポート
+import { useOCR } from '@/Manatan/context/OCRContext'; 
+import { OcrStatus } from '@/Manatan/types'; // 修正: typesからインポート
 
 interface StatusIconProps {
     status: OcrStatus;

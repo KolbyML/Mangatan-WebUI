@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { useOCR } from '@/Mangatan/context/OCRContext';
+import { useOCR } from '@/Manatan/context/OCRContext';
 
 export const GlobalDialog: React.FC = () => {
     const { dialogState, closeDialog } = useOCR();

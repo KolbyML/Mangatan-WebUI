@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getDictionaries, manageDictionary, DictionaryMeta } from '@/Mangatan/utils/api';
-import { useOCR } from '@/Mangatan/context/OCRContext';
+import { getDictionaries, manageDictionary, DictionaryMeta } from '@/Manatan/utils/api';
+import { useOCR } from '@/Manatan/context/OCRContext';
 
 export const DictionaryManager: React.FC<{ onImportClick: () => void }> = ({ onImportClick }) => {
     const { showConfirm, showProgress, closeDialog } = useOCR();

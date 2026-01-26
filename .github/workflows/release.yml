@@ -75,6 +75,6 @@ jobs:
         with:
           artifacts: "master/buildZip/*"
           owner: "kolbyml"
-          repo: "Mangatan-WebUI"
+          repo: "Manatan-WebUI"
           tag: ${{ steps.GenTagName.outputs.value }}
           draft: true

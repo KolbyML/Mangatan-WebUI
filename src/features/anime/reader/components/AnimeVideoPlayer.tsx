@@ -33,11 +33,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { useLocalStorage } from '@/base/hooks/useStorage.tsx';
-import { useOCR } from '@/Mangatan/context/OCRContext.tsx';
-import MangatanLogo from '@/Mangatan/assets/mangatan_logo.png';
-import { lookupYomitan } from '@/Mangatan/utils/api.ts';
-import { DictionaryResult } from '@/Mangatan/types.ts';
-import { StructuredContent } from '@/Mangatan/components/YomitanPopup.tsx';
+import { useOCR } from '@/Manatan/context/OCRContext.tsx';
+import ManatanLogo from '@/Manatan/assets/manatan_logo.png';
+import { lookupYomitan } from '@/Manatan/utils/api.ts';
+import { DictionaryResult } from '@/Manatan/types.ts';
+import { StructuredContent } from '@/Manatan/components/YomitanPopup.tsx';
 import { makeToast } from '@/base/utils/Toast.ts';
 import { MediaQuery } from '@/base/utils/MediaQuery.tsx';
 
@@ -1533,12 +1533,12 @@ export const AnimeVideoPlayer = ({
                                     openSettings();
                                 }}
                                 color="inherit"
-                                aria-label="Mangatan Settings"
+                                aria-label="Manatan Settings"
                             >
                                 <Box
                                     component="img"
-                                    src={MangatanLogo}
-                                    alt="Mangatan"
+                                    src={ManatanLogo}
+                                    alt="Manatan"
                                     sx={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
                                 />
                             </IconButton>

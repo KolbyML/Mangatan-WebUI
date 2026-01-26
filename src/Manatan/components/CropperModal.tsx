@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import ReactCrop, { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { getStitchedAndCroppedImg, getCroppedImg } from '@/Mangatan/utils/cropper';
+import { getStitchedAndCroppedImg, getCroppedImg } from '@/Manatan/utils/cropper';
 import { makeToast } from '@/base/utils/Toast';
 
 interface CropperModalProps {

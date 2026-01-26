@@ -9,8 +9,8 @@ import {
     ListItemText, 
     Typography 
 } from '@mui/material';
-import { useOCR } from '@/Mangatan/context/OCRContext';
-import MangatanLogo from '@/Mangatan/assets/mangatan_logo.png';
+import { useOCR } from '@/Manatan/context/OCRContext';
+import ManatanLogo from '@/Manatan/assets/manatan_logo.png';
 import { TypographyMaxLines } from '@/base/components/texts/TypographyMaxLines';
 
 const READER_DESKTOP_SELECTOR = '.MuiDrawer-paper .MuiDivider-root + .MuiStack-root';
@@ -34,7 +34,7 @@ export const SettingsInjector = () => {
 
         const cleanupLibraryMount = () => {
             if (libraryRef.current) {
-                const existing = document.getElementById('mangatan-nav-anchor');
+                const existing = document.getElementById('manatan-nav-anchor');
                 if (existing) existing.remove();
                 libraryRef.current = null;
                 setLibraryMount(null);
@@ -83,13 +83,13 @@ export const SettingsInjector = () => {
                 const aboutLink = document.querySelector(LIBRARY_SETTINGS_SELECTOR);
                 
                 if (aboutLink && aboutLink.parentNode) {
-                    const existingContainer = document.getElementById('mangatan-nav-anchor');
+                    const existingContainer = document.getElementById('manatan-nav-anchor');
                     
                     if (!existingContainer || existingContainer.nextSibling !== aboutLink) {
                         if (existingContainer) existingContainer.remove();
 
                         const container = document.createElement('div');
-                        container.id = 'mangatan-nav-anchor';
+                        container.id = 'manatan-nav-anchor';
                         container.style.display = 'contents';
                         
                         aboutLink.parentNode.insertBefore(container, aboutLink);
@@ -127,7 +127,7 @@ export const SettingsInjector = () => {
         return () => {
             observer.disconnect();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            const container = document.getElementById('mangatan-nav-anchor');
+            const container = document.getElementById('manatan-nav-anchor');
             if (container) container.remove();
         };
     }, []);
@@ -142,10 +142,10 @@ export const SettingsInjector = () => {
                         size="large"
                         sx={{ justifyContent: 'start', textTransform: 'unset', flexGrow: 1 }}
                         startIcon={
-                            <img src={MangatanLogo} alt="Logo" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <img src={ManatanLogo} alt="Logo" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
                         }
                     >
-                        Mangatan Settings
+                        Manatan Settings
                     </Button>
                 </div>,
                 readerMount
@@ -156,10 +156,10 @@ export const SettingsInjector = () => {
                     onClick={openSettings}
                     color="inherit"
                     size="medium"
-                    aria-label="Mangatan Settings"
+                    aria-label="Manatan Settings"
                     sx={{ padding: '8px' }}
                 >
-                    <img src={MangatanLogo} alt="Mangatan" style={{ width: '1em', height: '1em', borderRadius: '50%', objectFit: 'cover' }} />
+                    <img src={ManatanLogo} alt="Manatan" style={{ width: '1em', height: '1em', borderRadius: '50%', objectFit: 'cover' }} />
                 </IconButton>,
                 readerMount
             )}
@@ -187,7 +187,7 @@ export const SettingsInjector = () => {
                             } : {
                             }}
                         >
-                             <img src={MangatanLogo} alt="Mangatan" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                             <img src={ManatanLogo} alt="Manatan" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
                         </ListItemIcon>
                         
                             <ListItemText
@@ -202,7 +202,7 @@ export const SettingsInjector = () => {
                                             }
                                         }}
                                     >
-                                        Mangatan
+                                        Manatan
                                     </TypographyMaxLines>
                                 }
                                 secondary={
@@ -213,7 +213,7 @@ export const SettingsInjector = () => {
                                                 color: 'inherit'
                                             }
                                         }}>
-                                            Mangatan Settings
+                                            Manatan Settings
                                         </Typography>
                                     )
                                 }

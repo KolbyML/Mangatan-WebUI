@@ -31,9 +31,9 @@ import { ReactRouter } from '@/lib/react-router/ReactRouter.ts';
 import { AuthManager } from '@/features/authentication/AuthManager.ts';
 import { ImageProcessingType } from '@/features/settings/Settings.types.ts';
 
-// Mangatan OCR Desktop Script Initialization
-import { OCRProvider } from '@/Mangatan/context/OCRContext';
-import { OCRManager } from '@/Mangatan/OCRManager.tsx';
+// Manatan OCR Desktop Script Initialization
+import { OCRProvider } from '@/Manatan/context/OCRContext';
+import { OCRManager } from '@/Manatan/OCRManager.tsx';
 
 const { Browse } = loadable(() => import('@/features/browse/screens/Browse.tsx'), lazyLoadFallback);
 const { DownloadQueue } = loadable(() => import('@/features/downloads/screens/DownloadQueue.tsx'), lazyLoadFallback);

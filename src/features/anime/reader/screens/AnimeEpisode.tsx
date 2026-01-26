@@ -19,7 +19,7 @@ import { EmptyViewAbsoluteCentered } from '@/base/components/feedback/EmptyViewA
 import { getErrorMessage } from '@/lib/HelperFunctions.ts';
 import { AnimeVideoPlayer } from '@/features/anime/reader/components/AnimeVideoPlayer.tsx';
 import { AppRoutes } from '@/base/AppRoute.constants.ts';
-import { useOCR } from '@/Mangatan/context/OCRContext.tsx';
+import { useOCR } from '@/Manatan/context/OCRContext.tsx';
 import { useLocalStorage } from '@/base/hooks/useStorage.tsx';
 import { JimakuFileEntry, loadJimakuEpisodeFiles } from '@/features/anime/reader/services/jimaku.ts';
 import { makeToast } from '@/base/utils/Toast.ts';

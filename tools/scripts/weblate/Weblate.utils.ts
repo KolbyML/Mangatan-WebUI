@@ -56,7 +56,7 @@ export const getLanguageName = async (url: string): Promise<string> => {
 };
 
 export const fetchWeblateLanguageStats = async () =>
-    fetchData('https://hosted.weblate.org/api/components/suwayomi/mangatan-webui/statistics/?format=json-flat');
+    fetchData('https://hosted.weblate.org/api/components/suwayomi/manatan-webui/statistics/?format=json-flat');
 
 const dateRegex = /[0-9]{4}-[0-9]{2}-[0-9]{2}/g;
 const isValidIS08601Date = (date: string): boolean => !!date.match(dateRegex);

@@ -115,7 +115,7 @@ export interface DialogState {
 const isBrowser = typeof navigator !== 'undefined';
 const ua = isBrowser ? navigator.userAgent : '';
 
-const isAndroidNative = ua.includes('MangatanNative');
+const isAndroidNative = ua.includes('MangatanNative') || ua.includes('ManatanNative');
 const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
 const ENABLE_YOMITAN_DEFAULT = isAndroidNative || isIOS;

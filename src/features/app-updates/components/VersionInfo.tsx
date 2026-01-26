@@ -144,7 +144,7 @@ export const WebUIVersionInfo = () => {
             }}
         >
             <Typography component="span" variant="body2">
-                Bundled with Mangatan
+                Bundled with Manatan
             </Typography>
         </Stack>
     );

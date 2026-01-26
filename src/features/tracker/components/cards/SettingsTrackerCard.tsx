@@ -37,7 +37,7 @@ export const SettingsTrackerCard = ({ tracker }: { tracker: TTrackerSearch }) =>
         if (isOAuthLogin) {
             const state = {
                 redirectUrl: `${window.location.origin}/tracker/login/oauth`,
-                clientName: 'Mangatan-WebUI',
+                clientName: 'Manatan-WebUI',
                 trackerId: tracker.id,
                 trackerName: tracker.name,
             };
@@ -57,7 +57,7 @@ export const SettingsTrackerCard = ({ tracker }: { tracker: TTrackerSearch }) =>
         if (isOAuthLogin) {
             const state = {
                 redirectUrl: `${window.location.origin}/tracker/login/oauth`,
-                clientName: 'Suwayomi-WebUI',
+                clientName: 'Manatan-WebUI',
                 trackerId: tracker.id,
                 trackerName: tracker.name,
             };

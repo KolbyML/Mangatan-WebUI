@@ -128,20 +128,20 @@ export function About() {
                     </ListSubheader>
                 }
             >
-                <ListItemLink to="https://github.com/KolbyML/Mangatan" target="_blank" rel="noreferrer">
+                <ListItemLink to="https://github.com/KolbyML/Manatan" target="_blank" rel="noreferrer">
                     <ListItemText
-                        primary={"Mangatan"}
-                        secondary="https://github.com/KolbyML/Mangatan"
+                        primary={"Manatan"}
+                        secondary="https://github.com/KolbyML/Manatan"
                     />
                 </ListItemLink>
-                <ListItemLink to="https://github.com/KolbyML/Mangatan-WebUI" target="_blank" rel="noreferrer">
+                <ListItemLink to="https://github.com/KolbyML/Manatan-WebUI" target="_blank" rel="noreferrer">
                     <ListItemText
-                        primary={"Mangatan WebUI"}
-                        secondary="https://github.com/KolbyML/Mangatan-WebUI"
+                        primary={"Manatan WebUI"}
+                        secondary="https://github.com/KolbyML/Manatan-WebUI"
                     />
                 </ListItemLink>
                 <ListItemLink to="https://discord.gg/tDAtpPN8KK" target="_blank" rel="noreferrer">
-                    <ListItemText primary={"Mangatan Discord"} secondary="https://discord.gg/tDAtpPN8KK" />
+                    <ListItemText primary={"Manatan Discord"} secondary="https://discord.gg/tDAtpPN8KK" />
                 </ListItemLink>
                 <ListItemLink to={aboutServer.github} target="_blank" rel="noreferrer">
                     <ListItemText primary={"Suwayomi Server"} secondary={aboutServer.github} />

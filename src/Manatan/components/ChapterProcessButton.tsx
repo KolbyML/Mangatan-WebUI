@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { checkChapterStatus, preprocessChapter, ChapterStatus, AuthCredentials } from '@/Mangatan/utils/api';
+import { checkChapterStatus, preprocessChapter, ChapterStatus, AuthCredentials } from '@/Manatan/utils/api';
 
 interface ChapterProcessButtonProps {
     chapterPath: string; 

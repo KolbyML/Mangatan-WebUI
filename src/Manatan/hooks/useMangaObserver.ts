@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useOCR } from '@/Mangatan/context/OCRContext';
+import { useOCR } from '@/Manatan/context/OCRContext';
 
 export const useMangaObserver = () => {
     const { settings } = useOCR();
