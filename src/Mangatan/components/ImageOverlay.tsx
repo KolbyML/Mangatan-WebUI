@@ -1,12 +1,32 @@
-import React, { useEffect, useState, useRef, useCallback, memo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, memo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useOCR } from '@/Mangatan/context/OCRContext';
-import { OcrStatus, OcrBlock } from '@/Mangatan/types'; 
+import { OcrBlock } from '@/Mangatan/types'; 
 import { apiRequest } from '@/Mangatan/utils/api';
 import { TextBox } from '@/Mangatan/components/TextBox';
 import { StatusIcon } from '@/Mangatan/components/StatusIcon';
 // Ensure this path matches your file structure!
 import { useReaderOverlayStore } from '@/features/reader/stores/ReaderStore'; 
+
+const getOverlayContainer = (): HTMLElement => {
+    let container = document.getElementById('ocr-overlay-layer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'ocr-overlay-layer';
+        container.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            overflow: visible;
+        `;
+        document.body.appendChild(container);
+    }
+    return container;
+};
 
 // --- INNER COMPONENT (MEMOIZED) ---
 const ImageOverlayInner = memo(({ 
@@ -14,109 +34,159 @@ const ImageOverlayInner = memo(({
     status, 
     img, 
     spreadData,
-    mountNode, 
     onRetry, 
     onUpdate, 
     onMerge, 
     onDelete, 
     shouldShowChildren 
 }: any) => {
-    // Exact dimensions of the image element
-    const [style, setStyle] = useState({ top: 0, left: 0, width: 0, height: 0 });
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const innerRef = useRef<HTMLDivElement>(null);
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [isVisible, setIsVisible] = useState(false);
+    const containerRef = useRef<HTMLElement>(getOverlayContainer());
 
-    useEffect(() => {
+    useLayoutEffect(() => {
+        if (!img || !wrapperRef.current) return;
+
+        const wrapper = wrapperRef.current;
+        const inner = innerRef.current;
+        
         const syncPosition = () => {
-            if (!img) return;
-            // Match the overlay exactly to the image's layout footprint
-            setStyle({
-                top: img.offsetTop,
-                left: img.offsetLeft,
-                width: img.offsetWidth,
-                height: img.offsetHeight
+            if (!img.isConnected) {
+                wrapper.style.display = 'none';
+                return;
+            }
+
+            const rect = img.getBoundingClientRect();
+            
+            // Check visibility
+            const isInViewport = (
+                rect.bottom > 0 &&
+                rect.top < window.innerHeight &&
+                rect.right > 0 &&
+                rect.left < window.innerWidth &&
+                rect.width > 10 &&
+                rect.height > 10
+            );
+
+            if (!isInViewport) {
+                wrapper.style.display = 'none';
+                return;
+            }
+
+            wrapper.style.display = 'block';
+            wrapper.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+            
+            if (inner) {
+                inner.style.width = `${rect.width}px`;
+                inner.style.height = `${rect.height}px`;
+            }
+
+            if (Math.abs(dimensions.width - rect.width) > 1 || 
+                Math.abs(dimensions.height - rect.height) > 1) {
+                setDimensions({ width: rect.width, height: rect.height });
+            }
+            
+            if (!isVisible) setIsVisible(true);
+        };
+
+        // Initial sync
+        syncPosition();
+
+        let ticking = false;
+        const onUpdateEvent = () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                syncPosition();
+                ticking = false;
             });
         };
 
-        syncPosition();
+        const resizeObserver = new ResizeObserver(() => {
+            onUpdateEvent();
+        });
+        resizeObserver.observe(img);
 
-        // Update if image layout changes (e.g. lazy load)
-        const observer = new ResizeObserver(syncPosition);
-        observer.observe(img);
-        window.addEventListener('resize', syncPosition);
+        window.addEventListener('scroll', onUpdateEvent, { capture: true, passive: true });
+        window.addEventListener('resize', onUpdateEvent, { passive: true });
 
         return () => {
-            observer.disconnect();
-            window.removeEventListener('resize', syncPosition);
+            resizeObserver.disconnect();
+            window.removeEventListener('scroll', onUpdateEvent, true);
+            window.removeEventListener('resize', onUpdateEvent);
         };
-    }, [img]);
+    }, [img, dimensions.width, dimensions.height, isVisible]);
 
-    if (!mountNode) return null;
     if (status !== 'loading' && status !== 'error' && !data) return null;
 
     return createPortal(
         <div
+            ref={wrapperRef}
             className="ocr-overlay-wrapper"
+            data-img-src={img?.src?.slice(-30)}
             style={{
-                position: 'absolute',
-                top: style.top,
-                left: style.left,
-                width: style.width,
-                height: style.height,
+                position: 'fixed',
+                top: 0,
+                left: 0,
                 pointerEvents: 'none',
+                willChange: 'transform',
+                display: 'none', // Start hidden until intial sync
                 zIndex: 10,
             }}
         >
-            <div style={{ opacity: shouldShowChildren ? 1 : 0, transition: 'opacity 0.2s' }}>
-                <StatusIcon status={status} onRetry={onRetry} />
+            <div 
+                ref={innerRef}
+                style={{ 
+                    position: 'relative',
+                    width: dimensions.width || 'auto',
+                    height: dimensions.height || 'auto',
+                }}
+            >
+                <div style={{ opacity: shouldShowChildren ? 1 : 0, transition: 'opacity 0.2s' }}>
+                    <StatusIcon status={status} onRetry={onRetry} />
+                </div>
+                
+                {isVisible && data?.map((block: OcrBlock, i: number) => (
+                    <TextBox
+                        key={`${i}-${block.text.substring(0, 5)}`}
+                        index={i}
+                        block={block}
+                        imgSrc={img.src}
+                        spreadData={spreadData}
+                        containerWidth={dimensions.width}
+                        containerHeight={dimensions.height}
+                        onUpdate={onUpdate}
+                        onMerge={onMerge}
+                        onDelete={onDelete}
+                        parentVisible={shouldShowChildren}
+                    />
+                ))}
             </div>
-            
-            {data?.map((block: OcrBlock, i: number) => (
-                <TextBox
-                    // eslint-disable-next-line react/no-array-index-key
-                    key={`${i}-${block.text.substring(0, 5)}`}
-                    index={i}
-                    block={block}
-                    imgSrc={img.src}
-                    spreadData={spreadData}
-                    // CRITICAL: Pass exact width/height so TextBox calculates font size correctly
-                    containerWidth={style.width}
-                    containerHeight={style.height}
-                    onUpdate={onUpdate}
-                    onMerge={onMerge}
-                    onDelete={onDelete}
-                    parentVisible={shouldShowChildren}
-                />
-            ))}
         </div>,
-        mountNode
+        containerRef.current
     );
 });
 
 // --- MAIN COMPONENT ---
-// Added 'export' to fix the build error
-export const ImageOverlay: React.FC<{ img: HTMLImageElement, spreadData?: { leftSrc: string; rightSrc: string } }> = ({ img, spreadData }) => {
-    const { settings, serverSettings, ocrCache, updateOcrData, setActiveImageSrc, mergeAnchor, ocrStatusMap, setOcrStatus, dictPopup } = useOCR();
+export const ImageOverlay: React.FC<{ 
+    img: HTMLImageElement, 
+    spreadData?: { leftSrc: string; rightSrc: string } 
+}> = ({ img, spreadData }) => {
+    const { 
+        settings, serverSettings, ocrCache, updateOcrData, 
+        setActiveImageSrc, ocrStatusMap, setOcrStatus, dictPopup 
+    } = useOCR();
     
     const data = ocrCache.get(img.src) || null;
     const currentStatus = ocrCache.has(img.src) ? 'success' : (ocrStatusMap.get(img.src) || 'idle');
     const isReaderOverlayVisible = useReaderOverlayStore((state) => state.overlay.isVisible);
 
-    const [mountNode, setMountNode] = useState<HTMLElement | null>(null);
     const hideTimerRef = useRef<number | null>(null);
-    const isHoveringRef = useRef(false);
     const isPopupOpenRef = useRef(false);
 
     useEffect(() => { isPopupOpenRef.current = dictPopup.visible; }, [dictPopup.visible]);
-
-    // 1. Latch onto the image parent to get "Free Zoom" support
-    useEffect(() => {
-        if (img && img.parentElement) {
-            const parent = img.parentElement;
-            if (getComputedStyle(parent).position === 'static') {
-                parent.style.position = 'relative';
-            }
-            setMountNode(parent);
-        }
-    }, [img]);
 
     const fetchOCR = useCallback(async () => {
         if (!img.src || ocrCache.has(img.src)) return;
@@ -156,21 +226,18 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement, spreadData?: { left
         const clearTimer = () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
         const show = () => {
             clearTimer();
-            isHoveringRef.current = true;
             setActiveImageSrc(img.src);
         };
         const hide = () => {
             clearTimer();
             hideTimerRef.current = window.setTimeout(() => {}, 400);
         };
-        const onEnter = () => { isHoveringRef.current = true; show(); };
-        const onLeave = () => { isHoveringRef.current = false; hide(); };
 
-        img.addEventListener('mouseenter', onEnter);
-        img.addEventListener('mouseleave', onLeave);
+        img.addEventListener('mouseenter', show);
+        img.addEventListener('mouseleave', hide);
         return () => {
-            img.removeEventListener('mouseenter', onEnter);
-            img.removeEventListener('mouseleave', onLeave);
+            img.removeEventListener('mouseenter', show);
+            img.removeEventListener('mouseleave', hide);
             clearTimer();
         };
     }, [img, setActiveImageSrc]);
@@ -221,7 +288,6 @@ export const ImageOverlay: React.FC<{ img: HTMLImageElement, spreadData?: { left
             status={currentStatus}
             img={img}
             spreadData={spreadData}
-            mountNode={mountNode}
             onRetry={fetchOCR}
             onUpdate={handleUpdate}
             onMerge={handleMerge}
