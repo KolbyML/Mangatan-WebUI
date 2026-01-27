@@ -238,7 +238,7 @@ const BaseReader = ({
                     minWidth: `calc(100vw - ${readerNavBarWidth}px)`,
                     maxWidth: `calc(100vw - ${readerNavBarWidth}px)`,
                     width: `calc(100vw - ${readerNavBarWidth}px)`,
-                    height: `100vh`,
+                    height: `100dvh`,
                     marginLeft: `${readerNavBarWidth}px`,
                     transition: (theme) =>
                         `width 0.${theme.transitions.duration.shortest}s, margin-left 0.${theme.transitions.duration.shortest}s`,

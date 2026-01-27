@@ -76,7 +76,7 @@ export const getImagePlaceholderStyling = (
 
     const setReaderWidth = getSetReaderWidth(readerWidth, pageScaleMode);
     const fullWidth = getMaxWidth(`${Math.min(100, setReaderWidth ?? OVER_9000)}vw`);
-    const fullHeight = `calc(100vh - ${heightOffset}px)`;
+    const fullHeight = `calc(100dvh - ${heightOffset}px)`;
 
     const DEFAULT_SINGLE_PAGE_WIDTH = isTabletWidth ? fullWidth : getDesktopWidth(40, setReaderWidth);
     const DEFAULT_SINGLE_PAGE_HEIGHT = isTabletWidth ? fullHeight : '85vh';
@@ -89,7 +89,7 @@ export const getImagePlaceholderStyling = (
         },
         [ReadingMode.CONTINUOUS_VERTICAL]: {
             minWidth: DEFAULT_SINGLE_PAGE_WIDTH,
-            minHeight: '100vh',
+            minHeight: '100dvh',
         },
         [ReadingMode.CONTINUOUS_HORIZONTAL]: {
             minWidth: DEFAULT_SINGLE_PAGE_WIDTH,
@@ -97,7 +97,7 @@ export const getImagePlaceholderStyling = (
         },
         [ReadingMode.WEBTOON]: {
             minWidth: DEFAULT_SINGLE_PAGE_WIDTH,
-            minHeight: '100vh',
+            minHeight: '100dvh',
         },
     };
     const defaultStyling = {
@@ -121,7 +121,7 @@ export const getImagePlaceholderStyling = (
                 ...applyStyles(shouldStretchPage, {
                     minHeight: fullHeight,
                     ...applyStyles(isContinuousVerticalReadingMode(readingMode), {
-                        minHeight: '100vh',
+                        minHeight: '100dvh',
                     }),
                 }),
             };
@@ -132,7 +132,7 @@ export const getImagePlaceholderStyling = (
                     minWidth: minWidthForStretch,
                     minHeight: fullHeight,
                     ...applyStyles(isContinuousVerticalReadingMode(readingMode), {
-                        minHeight: '100vh',
+                        minHeight: '100dvh',
                     }),
                 }),
             };
@@ -157,7 +157,7 @@ const getReaderDimensionStyling = (
     heightOffset: number,
 ): CSSObject => {
     const fullWidth = `calc((100vw - ${widthOffset}px) * ${widthPercentage})`;
-    const fullHeight = `calc(100vh - ${heightOffset}px)`;
+    const fullHeight = `calc(100dvh - ${heightOffset}px)`;
 
     switch (pageScaleMode) {
         case ReaderPageScaleMode.WIDTH:
