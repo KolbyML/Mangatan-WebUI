@@ -226,7 +226,7 @@ export const TextBox: React.FC<{
         }
 
         let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
-        content = content.replace(/\u200B/g, '\n');
+        content = content.replace(/\u200B/g, '');
 
         if (settings.ankiEnableCropper) {
             setShowCropper(true);
@@ -264,7 +264,7 @@ export const TextBox: React.FC<{
     const handleCropperComplete = async (croppedImage: string) => {
         setShowCropper(false);
         let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
-        content = content.replace(/\u200B/g, '\n');
+        content = content.replace(/\u200B/g, '');
 
         showConfirm(
             'Update Anki Card?',
@@ -383,7 +383,7 @@ export const TextBox: React.FC<{
             }
 
             let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
-            content = content.replace(/\u200B/g, '\n');
+            content = content.replace(/\u200B/g, '');
 
             const encoder = new TextEncoder();
             const prefix = content.substring(0, charOffset);
