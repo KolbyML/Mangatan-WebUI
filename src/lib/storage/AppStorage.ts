@@ -15,7 +15,7 @@ type StorageBackend = typeof window.localStorage | null;
 export class Storage {
     private readonly memory = new Map<string, string>();
 
-    constructor(private readonly storage: StorageBackend) {}
+    constructor(private readonly storage: StorageBackend) { }
 
     parseValue<T>(value: string | null, defaultValue: T): T {
         if (value === null) {
@@ -100,85 +100,126 @@ export class Storage {
     }
 }
 
+export interface BookStats {
+    chapterLengths: number[];
+    totalLength: number;
+}
+
+export interface LNMetadata {
+    id: string;
+    title: string;
+    author: string;
+    cover?: string;
+    addedAt: number;
+
+    // Processing state
+    isProcessing?: boolean;
+    isError?: boolean;
+    errorMsg?: string;
+
+    // Pre-calculated on import
+    stats: BookStats;
+    chapterCount: number;
+
+    // For library display
+    hasProgress?: boolean;
+}
+
 export interface LNProgress {
-    chapterId: string;
     chapterIndex: number;
-    // For paginated mode
     pageNumber?: number;
-    totalPages?: number;
-    // For continuous mode
-    scrollPercentage?: number;
-    scrollPosition?: number;
-    textOffset?: number;
-    totalProgress?: number;
-    sentenceText?: string;
-    // Metadata
+
+    // Character-based
+    chapterCharOffset: number;
+    totalCharsRead: number;
+
+    // Restoration anchor
+    sentenceText: string;
+
+    // Percentages
+    chapterProgress: number;
+    totalProgress: number;
+
+    // Meta
     lastRead: number;
 }
 
+export interface LNParsedBook {
+    chapters: string[];              // Pre-parsed HTML for each chapter
+    imageBlobs: Record<string, Blob>; // Original blobs for images
+}
+
 export class AppStorage {
-    static readonly local: Storage = new Storage(AppStorage.getSafeStorage(() => window.localStorage));
+    static readonly local = new Storage(AppStorage.getSafeStorage(() => window.localStorage));
+    static readonly session = new Storage(AppStorage.getSafeStorage(() => window.sessionStorage));
 
-    static readonly session: Storage = new Storage(AppStorage.getSafeStorage(() => window.sessionStorage));
-
-    // 1. Files Storage
+    // Raw EPUB files (can delete after parsing if needed)
     static readonly files = localforage.createInstance({
         name: 'Manatan',
         storeName: 'ln_files',
-        description: 'Storage for Light Novel EPUB files',
+        description: 'EPUB source files',
     });
 
-    // 2. Metadata Storage
+    // Book metadata with stats
     static readonly lnMetadata = localforage.createInstance({
         name: 'Manatan',
         storeName: 'ln_metadata',
         description: 'Light Novel metadata',
     });
 
-    // 3. Progress Storage (This was missing causing the first error)
+    // Pre-parsed book content
+    static readonly lnContent = localforage.createInstance({
+        name: 'Manatan',
+        storeName: 'ln_content',
+        description: 'Pre-parsed book chapters and images',
+    });
+
+    // Reading progress
     static readonly lnProgress = localforage.createInstance({
         name: 'Manatan',
         storeName: 'ln_progress',
-        description: 'Reading progress tracking',
+        description: 'Reading progress',
     });
 
-    // --- HELPER METHODS ---
+    // --- Helper Methods ---
 
-    // Save reading progress
-    static async saveLnProgress(bookId: string, progress: LNProgress): Promise<void> {
+    static async saveLnProgress(bookId: string, progress: Omit<LNProgress, 'lastRead'>): Promise<void> {
         await this.lnProgress.setItem(bookId, {
             ...progress,
             lastRead: Date.now(),
         });
     }
 
-    // Get reading progress
     static async getLnProgress(bookId: string): Promise<LNProgress | null> {
         try {
             return await this.lnProgress.getItem<LNProgress>(bookId);
-        } catch (e) {
-            console.warn('Failed to load progress:', e);
+        } catch {
             return null;
         }
     }
 
-    // Save an EPUB file
-    static async saveEpubFile(id: string, file: Blob): Promise<void> {
-        await this.files.setItem(id, file);
+    static async getLnMetadata(bookId: string): Promise<LNMetadata | null> {
+        try {
+            return await this.lnMetadata.getItem<LNMetadata>(bookId);
+        } catch {
+            return null;
+        }
     }
 
-    // Get an EPUB file as a URL for the reader
-    static async getEpubUrl(id: string): Promise<string | null> {
-        const blob = await this.files.getItem<Blob>(id);
-        return blob ? URL.createObjectURL(blob) : null;
+    static async getLnContent(bookId: string): Promise<LNParsedBook | null> {
+        try {
+            return await this.lnContent.getItem<LNParsedBook>(bookId);
+        } catch {
+            return null;
+        }
     }
 
-    // Delete everything related to a Light Novel
-    static async deleteLnData(id: string): Promise<void> {
+    static async deleteLnData(bookId: string): Promise<void> {
         await Promise.all([
-            this.files.removeItem(id),
-            this.lnMetadata.removeItem(id),
-            this.lnProgress.removeItem(id),
+            this.files.removeItem(bookId),
+            this.lnMetadata.removeItem(bookId),
+            this.lnContent.removeItem(bookId),
+            this.lnProgress.removeItem(bookId),
         ]);
     }
 

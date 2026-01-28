@@ -1,8 +1,3 @@
-/**
- * Navigation utilities for reader components
- * Handles keyboard, mouse, touch, and click navigation
- */
-
 export interface NavigationOptions {
     isVertical: boolean;
     isRTL: boolean;
@@ -79,40 +74,64 @@ export function handleKeyNavigation(
     options: NavigationOptions,
     callbacks: NavigationCallbacks
 ): boolean {
-    const { isVertical, isRTL } = options;
+    const { isVertical, isRTL, isPaged } = options;
 
     switch (event.key) {
+        // Left/Right arrows
         case 'ArrowLeft':
             if (isVertical) {
+                // Vertical text: left = forward (RTL) or backward (LTR)
                 if (isRTL) callbacks.goNext();
                 else callbacks.goPrev();
-                return true;
+            } else {
+                // Horizontal text: left = backward
+                callbacks.goPrev();
             }
-            break;
+            return true;
 
         case 'ArrowRight':
             if (isVertical) {
+                // Vertical text: right = backward (RTL) or forward (LTR)
                 if (isRTL) callbacks.goPrev();
                 else callbacks.goNext();
-                return true;
+            } else {
+                // Horizontal text: right = forward
+                callbacks.goNext();
             }
-            break;
+            return true;
 
+        // Up/Down arrows
         case 'ArrowDown':
-        case 'PageDown':
-            if (!isVertical) {
+            if (isVertical) {
+                // Vertical text: down scrolls within column, not page navigation
+                if (!isPaged) return false; // Let browser handle
+                callbacks.goNext();
+                return true;
+            } else {
+                // Horizontal: down = next
+                if (!isPaged) return false; // Let browser handle continuous scroll
                 callbacks.goNext();
                 return true;
             }
-            break;
 
         case 'ArrowUp':
-        case 'PageUp':
-            if (!isVertical) {
+            if (isVertical) {
+                if (!isPaged) return false;
+                callbacks.goPrev();
+                return true;
+            } else {
+                if (!isPaged) return false;
                 callbacks.goPrev();
                 return true;
             }
-            break;
+
+        case 'PageDown':
+            callbacks.goNext();
+            return true;
+
+        case 'PageUp':
+            callbacks.goPrev();
+            return true;
 
         case ' ':
             if (!event.shiftKey) callbacks.goNext();
@@ -145,7 +164,9 @@ export function handleWheelNavigation(
     if (!isPaged) return false;
 
     const delta = isVertical
-        ? (event.deltaX !== 0 ? event.deltaX : event.deltaY)
+        ? event.deltaX !== 0
+            ? event.deltaX
+            : event.deltaY
         : event.deltaY;
 
     if (Math.abs(delta) < 20) return false;
@@ -185,6 +206,7 @@ export function handleTouchEnd(
     if (deltaTime > maxTime) return null;
 
     if (isVertical) {
+        // Horizontal swipe for vertical text
         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minDistance) {
             if (isRTL) {
                 if (deltaX < 0) {
@@ -205,6 +227,7 @@ export function handleTouchEnd(
             }
         }
     } else {
+        // Vertical swipe for horizontal text
         if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > minDistance) {
             if (deltaY < 0) {
                 callbacks.goNext();
@@ -220,12 +243,9 @@ export function handleTouchEnd(
 }
 
 /**
- * Scroll container to start position (handles RTL)
+ * Scroll container to start position
  */
-export function scrollToStart(
-    container: HTMLElement,
-    options: NavigationOptions
-): void {
+export function scrollToStart(container: HTMLElement, options: NavigationOptions): void {
     const { isVertical, isRTL } = options;
 
     if (isVertical && isRTL) {
@@ -240,10 +260,7 @@ export function scrollToStart(
 /**
  * Scroll container to end position
  */
-export function scrollToEnd(
-    container: HTMLElement,
-    options: NavigationOptions
-): void {
+export function scrollToEnd(container: HTMLElement, options: NavigationOptions): void {
     const { isVertical, isRTL } = options;
 
     if (isVertical && isRTL) {
