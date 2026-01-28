@@ -109,12 +109,9 @@ export interface LNProgress {
     // For continuous mode
     scrollPercentage?: number;
     scrollPosition?: number;
-
-    // NEW: For precise progress tracking
     textOffset?: number;
     totalProgress?: number;
     sentenceText?: string;
-
     // Metadata
     lastRead: number;
 }
