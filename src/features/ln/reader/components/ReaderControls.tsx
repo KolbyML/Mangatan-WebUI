@@ -1,0 +1,429 @@
+import React from 'react';
+import {
+    Drawer, Box, Typography, Slider, Select, MenuItem,
+    FormControl, InputLabel, IconButton, Divider, Switch,
+    FormControlLabel, ToggleButtonGroup, ToggleButton,
+    SelectChangeEvent,
+} from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
+import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
+import FormatAlignJustifyIcon from '@mui/icons-material/FormatAlignJustify';
+import { Settings } from '@/Manatan/types';
+import { TextField } from '@mui/material';
+
+const THEMES = {
+    light: { name: 'Light', bg: '#FFFFFF', fg: '#1a1a1a', preview: '#FFFFFF' },
+    sepia: { name: 'Sepia', bg: '#F4ECD8', fg: '#5C4B37', preview: '#F4ECD8' },
+    dark: { name: 'Dark', bg: '#2B2B2B', fg: '#E0E0E0', preview: '#2B2B2B' },
+    black: { name: 'Black', bg: '#000000', fg: '#CCCCCC', preview: '#000000' },
+} as const;
+const CUSTOM_FONT_VALUE = '__custom__';
+
+// A safe cross-language fallback stack 
+const UNIVERSAL_FALLBACK_STACK =
+    'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", serif';
+
+const FONT_PRESETS = [
+    { label: 'System (Default)', value: UNIVERSAL_FALLBACK_STACK },
+    { label: 'Serif ', value: 'Georgia, "Times New Roman", Times, serif' },
+    { label: 'Sans ', value: 'Arial, Helvetica, sans-serif' },
+    { label: 'Noto Serif JP', value: '"Noto Serif JP", serif' },
+    { label: 'Noto Sans JP', value: '"Noto Sans JP", sans-serif' },
+];
+function getPrimaryFontName(fontFamily: string): string {
+    const first = (fontFamily || '').split(',')[0]?.trim() ?? '';
+    return first.replace(/^["']|["']$/g, ''); // strip quotes
+}
+
+function buildFontFamilyFromCustomName(name: string): string {
+    const raw = (name || '').trim();
+
+    if (!raw) return UNIVERSAL_FALLBACK_STACK;
+
+    const safe = raw.replace(/,/g, '').trim();
+
+    const needsQuotes = /\s/.test(safe);
+    const font = needsQuotes ? `"${safe.replace(/"/g, '')}"` : safe;
+
+    return `${font}, ${UNIVERSAL_FALLBACK_STACK}`;
+}
+
+function findMatchingPreset(value: string): string | null {
+    const match = FONT_PRESETS.find(p => p.value === value);
+    return match ? match.value : null;
+}
+interface Props {
+    open: boolean;
+    onClose: () => void;
+    settings: Settings;
+    onUpdateSettings: (key: keyof Settings, value: any) => void;
+    theme: { bg: string; fg: string };
+}
+
+const getMenuProps = (theme: { bg: string; fg: string }) => ({
+    sx: { zIndex: 2100 },
+    PaperProps: {
+        sx: {
+            bgcolor: theme.bg,
+            color: theme.fg,
+            border: `1px solid ${theme.fg}22`,
+            boxShadow: 3,
+            '& .MuiMenuItem-root': {
+                '&:hover': { bgcolor: `${theme.fg}11` },
+                '&.Mui-selected': {
+                    bgcolor: `${theme.fg}22`,
+                    '&:hover': { bgcolor: `${theme.fg}33` },
+                },
+            },
+        },
+    },
+    keepMounted: true,
+});
+
+const getSelectStyles = (theme: { bg: string; fg: string }) => ({
+    color: theme.fg,
+    '.MuiOutlinedInput-notchedOutline': { borderColor: `${theme.fg}44` },
+    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: `${theme.fg}66` },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.fg },
+    '.MuiSvgIcon-root': { color: theme.fg },
+});
+
+export const ReaderControls: React.FC<Props> = ({
+    open,
+    onClose,
+    settings,
+    onUpdateSettings,
+    theme,
+}) => {
+    const menuProps = getMenuProps(theme);
+    const selectStyles = getSelectStyles(theme);
+
+    return (
+        <Drawer
+            anchor="bottom"
+            open={open}
+            onClose={onClose}
+            sx={{ zIndex: 2000 }}
+            PaperProps={{
+                sx: {
+                    bgcolor: theme.bg,
+                    color: theme.fg,
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    maxHeight: '85vh',
+                },
+            }}
+            ModalProps={{ keepMounted: false }}
+        >
+            <Box sx={{ p: 3, overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        Reader Settings
+                    </Typography>
+                    <IconButton onClick={onClose} sx={{ color: theme.fg }}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+
+                {/* Theme Selection */}
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, opacity: 0.8 }}>
+                        Theme
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                        {Object.entries(THEMES).map(([key, t]) => (
+                            <Box
+                                key={key}
+                                onClick={() => onUpdateSettings('lnTheme', key)}
+                                sx={{
+                                    flex: 1,
+                                    height: 60,
+                                    borderRadius: 2,
+                                    bgcolor: t.preview,
+                                    border: settings.lnTheme === key
+                                        ? '3px solid #4890ff'
+                                        : `2px solid ${theme.fg}44`,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 0.5,
+                                    transition: 'all 0.2s',
+                                    '&:hover': { transform: 'scale(1.05)', boxShadow: 2 },
+                                }}
+                            >
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: t.fg }}>
+                                    {t.name}
+                                </Typography>
+                                <Typography sx={{ fontSize: '1.2rem', fontWeight: 600, color: t.fg }}>
+                                    Aa
+                                </Typography>
+                            </Box>
+                        ))}
+                    </Box>
+                </Box>
+
+                <Divider sx={{ my: 3, borderColor: `${theme.fg}22` }} />
+
+                {/* Typography Section */}
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, opacity: 0.8 }}>
+                        Typography
+                    </Typography>
+
+                    {/* Font Family */}
+                    <Box sx={{ mb: 2 }}>
+                        {(() => {
+                            const presetMatch = findMatchingPreset(settings.lnFontFamily);
+                            const selectValue = presetMatch ?? CUSTOM_FONT_VALUE;
+                            const customName = getPrimaryFontName(settings.lnFontFamily);
+
+                            return (
+                                <>
+                                    <FormControl fullWidth size="small" sx={{ mb: 1 }}>
+                                        <InputLabel sx={{ color: theme.fg, '&.Mui-focused': { color: theme.fg } }}>
+                                            Font Family
+                                        </InputLabel>
+
+                                        <Select
+                                            value={selectValue}
+                                            label="Font Family"
+                                            onChange={(e: SelectChangeEvent) => {
+                                                const v = e.target.value;
+
+                                                if (v === CUSTOM_FONT_VALUE) {
+                                                    // Switch to custom mode; keep current primary name
+                                                    const primary = getPrimaryFontName(settings.lnFontFamily);
+                                                    onUpdateSettings('lnFontFamily', buildFontFamilyFromCustomName(primary));
+                                                } else {
+                                                    // Preset selected
+                                                    onUpdateSettings('lnFontFamily', v);
+                                                }
+                                            }}
+                                            sx={selectStyles}
+                                            MenuProps={menuProps}
+                                        >
+                                            <MenuItem value={CUSTOM_FONT_VALUE}>Custom…</MenuItem>
+                                            {FONT_PRESETS.map(p => (
+                                                <MenuItem key={p.label} value={p.value}>
+                                                    <span style={{ fontFamily: p.value }}>{p.label}</span>
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+
+                                    {/* Show text field only in custom mode */}
+                                    {selectValue === CUSTOM_FONT_VALUE && (
+                                        <TextField
+                                            size="small"
+                                            fullWidth
+                                            label="Custom font name"
+                                            value={customName}
+                                            onChange={(e) => {
+                                                onUpdateSettings('lnFontFamily', buildFontFamilyFromCustomName(e.target.value));
+                                            }}
+                                            placeholder='Example: Ridibatang'
+                                            helperText="Font must be installed on your device"
+                                            InputLabelProps={{ style: { color: theme.fg } }}
+                                            sx={selectStyles}
+                                        />
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </Box>
+
+                    {/* Font Size */}
+                    <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>Font Size</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnFontSize}px</Typography>
+                        </Box>
+                        <Slider
+                            value={settings.lnFontSize}
+                            min={12}
+                            max={32}
+                            step={1}
+                            onChange={(_, v) => onUpdateSettings('lnFontSize', v)}
+                            sx={{ color: theme.fg }}
+                        />
+                    </Box>
+
+                    {/* Line Height */}
+                    <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>Line Height</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnLineHeight.toFixed(1)}</Typography>
+                        </Box>
+                        <Slider
+                            value={settings.lnLineHeight}
+                            min={1.2}
+                            max={2.5}
+                            step={0.1}
+                            onChange={(_, v) => onUpdateSettings('lnLineHeight', v)}
+                            sx={{ color: theme.fg }}
+                        />
+                    </Box>
+
+                    {/* Letter Spacing */}
+                    <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>Letter Spacing</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnLetterSpacing}px</Typography>
+                        </Box>
+                        <Slider
+                            value={settings.lnLetterSpacing}
+                            min={-2}
+                            max={5}
+                            step={0.5}
+                            onChange={(_, v) => onUpdateSettings('lnLetterSpacing', v)}
+                            sx={{ color: theme.fg }}
+                        />
+                    </Box>
+
+                    {/* Text Alignment */}
+                    <Box>
+                        <Typography variant="caption" sx={{ opacity: 0.8, mb: 1, display: 'block' }}>
+                            Text Alignment
+                        </Typography>
+                        <ToggleButtonGroup
+                            value={settings.lnTextAlign}
+                            exclusive
+                            onChange={(_, v) => v && onUpdateSettings('lnTextAlign', v)}
+                            size="small"
+                            fullWidth
+                            sx={{
+                                '& .MuiToggleButton-root': {
+                                    color: theme.fg,
+                                    borderColor: `${theme.fg}44`,
+                                    '&.Mui-selected': { bgcolor: `${theme.fg}22`, color: theme.fg },
+                                },
+                            }}
+                        >
+                            <ToggleButton value="left"><FormatAlignLeftIcon sx={{ mr: 0.5 }} />Left</ToggleButton>
+                            <ToggleButton value="center"><FormatAlignCenterIcon sx={{ mr: 0.5 }} />Center</ToggleButton>
+                            <ToggleButton value="justify"><FormatAlignJustifyIcon sx={{ mr: 0.5 }} />Justify</ToggleButton>
+                        </ToggleButtonGroup>
+                    </Box>
+                </Box>
+
+                <Divider sx={{ my: 3, borderColor: `${theme.fg}22` }} />
+
+                {/* Layout Section */}
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, opacity: 0.8 }}>
+                        Layout
+                    </Typography>
+
+                    {/* Reading Direction */}
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                        <InputLabel sx={{ color: theme.fg, '&.Mui-focused': { color: theme.fg } }}>
+                            Text Direction
+                        </InputLabel>
+                        <Select
+                            value={settings.lnReadingDirection}
+                            label="Text Direction"
+                            onChange={(e: SelectChangeEvent) => onUpdateSettings('lnReadingDirection', e.target.value)}
+                            sx={selectStyles}
+                            MenuProps={menuProps}
+                        >
+                            <MenuItem value="horizontal">Horizontal (Left-to-Right)</MenuItem>
+                            <MenuItem value="vertical-rtl">Vertical (Japanese RTL)</MenuItem>
+                            <MenuItem value="vertical-ltr">Vertical (Left-to-Right)</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    {/* Pagination Mode */}
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                        <InputLabel sx={{ color: theme.fg, '&.Mui-focused': { color: theme.fg } }}>
+                            Pagination
+                        </InputLabel>
+                        <Select
+                            value={settings.lnPaginationMode}
+                            label="Pagination"
+                            onChange={(e: SelectChangeEvent) => onUpdateSettings('lnPaginationMode', e.target.value)}
+                            sx={selectStyles}
+                            MenuProps={menuProps}
+                        >
+                            <MenuItem value="scroll">Continuous Scroll</MenuItem>
+                            <MenuItem value="paginated">Paginated (Pages)</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    {/* Page Margin */}
+                    <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>Page Margin</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnPageMargin}px</Typography>
+                        </Box>
+                        <Slider
+                            value={settings.lnPageMargin}
+                            min={0}
+                            max={80}
+                            step={4}
+                            onChange={(_, v) => onUpdateSettings('lnPageMargin', v)}
+                            sx={{ color: theme.fg }}
+                        />
+                    </Box>
+                </Box>
+
+                <Divider sx={{ my: 3, borderColor: `${theme.fg}22` }} />
+
+                {/* Features Section */}
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, opacity: 0.8 }}>
+                        Features
+                    </Typography>
+
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={settings.lnEnableFurigana}
+                                onChange={(e) => onUpdateSettings('lnEnableFurigana', e.target.checked)}
+                                sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: theme.fg },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: theme.fg },
+                                }}
+                            />
+                        }
+                        label={
+                            <Box>
+                                <Typography variant="body2">Show Furigana</Typography>
+                                <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                                    Display reading aids above kanji
+                                </Typography>
+                            </Box>
+                        }
+                        sx={{ mb: 1.5, width: '100%' }}
+                    />
+
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={settings.enableYomitan}
+                                onChange={(e) => onUpdateSettings('enableYomitan', e.target.checked)}
+                                sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: theme.fg },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: theme.fg },
+                                }}
+                            />
+                        }
+                        label={
+                            <Box>
+                                <Typography variant="body2">Dictionary Lookup</Typography>
+                                <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                                    {settings.interactionMode === 'hover' ? 'Hover over text to lookup' : 'Tap text to lookup'}
+                                </Typography>
+                            </Box>
+                        }
+                        sx={{ width: '100%' }}
+                    />
+                </Box>
+            </Box>
+        </Drawer>
+    );
+};
+

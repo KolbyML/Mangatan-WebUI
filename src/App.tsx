@@ -99,6 +99,8 @@ const { GlobalReaderSettings } = loadable(
 const { More } = loadable(() => import('@/features/settings/screens/More.tsx'), lazyLoadFallback);
 const { Reader } = loadable(() => import('@/features/reader/screens/Reader.tsx'), lazyLoadFallback);
 const { HistorySettings } = loadable(() => import('@/features/history/screens/HistorySettings.tsx'), lazyLoadFallback);
+const { LNLibrary } = loadable(() => import('@/features/ln/screens/LNLibrary.tsx'), lazyLoadFallback);
+const { LNReaderScreen } = loadable(() => import('@/features/ln/reader/screens/LNReaderScreen.tsx'), lazyLoadFallback);
 
 if (import.meta.env.DEV) {
     // Adds messages only in a dev environment
@@ -317,6 +319,8 @@ const MainApp = () => {
                             <Route index element={<Migrate />} />
                             <Route path={AppRoutes.migrate.childRoutes.search.match} element={<SearchAll />} />
                         </Route>
+                        {/* LN Library Route */}
+                        <Route path={AppRoutes.ln.match} element={<LNLibrary />} />
                         <Route path={AppRoutes.tracker.match} element={<TrackerOAuthLogin />} />
                     </Route>
                 </Routes>
@@ -330,6 +334,16 @@ const ReaderApp = () => (
         <Routes>
             <Route element={<PrivateRoutes />}>
                 <Route path={AppRoutes.matchAll.match} element={<Reader />} />
+            </Route>
+        </Routes>
+    </ErrorBoundary>
+);
+
+const LNReaderApp = () => (
+    <ErrorBoundary>
+        <Routes>
+            <Route element={<PrivateRoutes />}>
+                <Route path="*" element={<LNReaderScreen />} />
             </Route>
         </Routes>
     </ErrorBoundary>
@@ -350,15 +364,30 @@ export const App: React.FC = () => (
             <OCRProvider>
                 <OCRManager />
 
-                <Box sx={{ display: 'flex' }}>
-                    <Box sx={{ flexShrink: 0, position: 'relative', height: '100vh' }}>
-                        <DefaultNavBar />
-                    </Box>
-                    <Routes>
-                        <Route path={AppRoutes.matchAll.match} element={<MainApp />} />
-                        <Route path={AppRoutes.reader.match} element={<ReaderApp />} />
-                    </Routes>
-                </Box>
+                <Routes>
+                    {/* Fullscreen Reader Routes */}
+                    <Route
+                        path={`${AppRoutes.ln.match}/${AppRoutes.ln.childRoutes.reader.match}/*`}
+                        element={<LNReaderApp />}
+                    />
+                    <Route
+                        path={AppRoutes.reader.match}
+                        element={<ReaderApp />}
+                    />
+
+                    {/* Main App Layout with Sidebar */}
+                    <Route
+                        path="*"
+                        element={
+                            <Box sx={{ display: 'flex' }}>
+                                <Box sx={{ flexShrink: 0, position: 'relative', height: '100vh' }}>
+                                    <DefaultNavBar />
+                                </Box>
+                                <MainApp />
+                            </Box>
+                        }
+                    />
+                </Routes>
             </OCRProvider>
         </AuthGuard>
     </AppContext>

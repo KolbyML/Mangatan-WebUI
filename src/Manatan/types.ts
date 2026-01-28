@@ -51,6 +51,19 @@ export interface Settings {
     ankiModel?: string;
     ankiFieldMap?: Record<string, string>;
     ankiCheckDuplicates?: boolean;
+    // Light Novel Settings
+    lnFontSize: number;
+    lnLineHeight: number;
+    lnFontFamily: string;
+    lnTheme: 'light' | 'sepia' | 'dark' | 'black';
+    lnReadingDirection: 'horizontal' | 'vertical-rtl' | 'vertical-ltr';
+    lnPaginationMode: 'scroll' | 'paginated' | 'single-page';
+    lnPageWidth: number;
+    lnPageMargin: number;
+    lnEnableFurigana: boolean;
+    lnTextAlign: 'left' | 'center' | 'justify';
+    lnLetterSpacing: number;
+    lnParagraphSpacing: number;
     // Dropdown setting for grouping behavior
     resultGroupingMode: 'grouped' | 'flat'; 
 
@@ -82,9 +95,14 @@ export interface DictionaryDefinition {
 }
 
 export interface DictPopupContext {
-    imgSrc: string;
+    imgSrc?: string;
     spreadData?: { leftSrc: string; rightSrc: string }; 
     sentence: string;
+    source?: {
+        kind: 'manga' | 'ln';
+        bookId?: string;
+        chapterIndex?: number;
+    };
 }
 
 export interface DictPopupState {
@@ -95,10 +113,15 @@ export interface DictPopupState {
     isLoading: boolean;
     systemLoading?: boolean;
     highlight?: {
-        imgSrc: string;
-        index: number;
+        imgSrc?: string;
+        index?: number;
         startChar: number;
         length: number;
+        source?: {
+            kind: 'manga' | 'ln';
+            bookId?: string;
+            chapterIndex?: number;
+        };
     };
     context?: DictPopupContext; 
 }
@@ -165,6 +188,19 @@ export const DEFAULT_SETTINGS: Settings = {
     ankiModel: '',
     ankiFieldMap: {},
     ankiCheckDuplicates: true
+    // LN Defaults
+    lnFontSize: 16,
+    lnLineHeight: 1.6,
+    lnFontFamily: "'Noto Serif JP', serif",
+    lnTheme: 'sepia',
+    lnReadingDirection: 'horizontal',
+    lnPaginationMode: 'paginated',
+    lnPageWidth: 800,
+    lnPageMargin: 40,
+    lnEnableFurigana: true,
+    lnTextAlign: 'justify',
+    lnLetterSpacing: 0,
+    lnParagraphSpacing: 1.5,
 };
 
 export const COLOR_THEMES: Record<ColorTheme, { accent: string; background: string }> = {

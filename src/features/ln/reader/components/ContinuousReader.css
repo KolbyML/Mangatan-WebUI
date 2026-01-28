@@ -1,0 +1,258 @@
+.continuous-reader-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+}
+
+.continuous-reader-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+.continuous-reader-container.horizontal {
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.continuous-reader-container.vertical {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.continuous-reader-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.continuous-reader-container::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.4);
+    border-radius: 4px;
+}
+
+.continuous-reader-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.continuous-content {
+    min-height: 100%;
+}
+
+.continuous-content.horizontal {
+    width: 100%;
+}
+
+.continuous-content.vertical {
+    display: inline-block;
+    height: 100%;
+    min-height: 100vh;
+    width: auto;
+}
+
+/* =====================================================
+   CHAPTER BLOCKS
+   ===================================================== */
+
+.chapter-block {
+    box-sizing: border-box;
+}
+
+.chapter-block.horizontal {
+    width: 100%;
+    margin: 0 auto;
+    padding-bottom: 3em;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.chapter-block.horizontal:last-child {
+    border-bottom: none;
+    padding-bottom: 5em;
+}
+
+.chapter-block.vertical {
+    display: inline-block;
+    height: 100%;
+    min-height: calc(100vh - 40px);
+    border-left: 1px solid rgba(128, 128, 128, 0.1);
+    margin-left: 1.5em;
+    vertical-align: top;
+}
+
+.chapter-block.vertical:first-child {
+    border-left: none;
+    margin-left: 0;
+}
+
+/* =====================================================
+   LOADING STATE
+   ===================================================== */
+
+.chapter-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    opacity: 0.5;
+    font-size: 14px;
+}
+
+.chapter-loading.horizontal {
+    min-height: 400px;
+    width: 100%;
+}
+
+.chapter-loading.vertical {
+    min-width: 300px;
+    height: 100%;
+    min-height: calc(100vh - 40px);
+}
+
+.loading-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* =====================================================
+   TYPOGRAPHY
+   ===================================================== */
+
+.chapter-block p {
+    margin: 0 0 1em 0;
+}
+
+.chapter-block h1,
+.chapter-block h2,
+.chapter-block h3,
+.chapter-block h4 {
+    font-weight: bold;
+    margin: 1.5em 0 0.5em 0;
+}
+
+.chapter-block h1 {
+    font-size: 1.5em;
+}
+
+.chapter-block h2 {
+    font-size: 1.3em;
+}
+
+.chapter-block h3 {
+    font-size: 1.15em;
+}
+
+/* =====================================================
+   IMAGES
+   ===================================================== */
+
+.chapter-block.horizontal img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5em auto;
+}
+
+.chapter-block.vertical img {
+    max-height: 80vh;
+    max-width: 90vw;
+    width: auto;
+    display: block;
+    margin: 1em auto;
+    writing-mode: horizontal-tb;
+}
+
+/* Image-only chapters */
+.chapter-block .image-only-chapter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+}
+
+.chapter-block .image-only-chapter img {
+    max-width: 90%;
+    max-height: 85vh;
+}
+
+/* =====================================================
+   LINKS & RUBY
+   ===================================================== */
+
+.chapter-block ruby {
+    ruby-align: center;
+}
+
+.chapter-block rt {
+    font-size: 0.5em;
+}
+
+.chapter-block a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: rgba(128, 128, 128, 0.5);
+}
+
+/* =====================================================
+   MOBILE
+   ===================================================== */
+
+@media (max-width: 768px) {
+    .chapter-block.horizontal {
+        padding-bottom: 2em;
+    }
+
+    .chapter-block.vertical {
+        margin-left: 1em;
+    }
+}
+
+/* =====================================================
+   TOUCH DEVICES
+   ===================================================== */
+
+@media (hover: none) {
+    .continuous-reader-container {
+        overscroll-behavior: contain;
+    }
+}
+
+/* =====================================================
+   REDUCED MOTION
+   ===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .continuous-reader-container {
+        scroll-behavior: auto;
+    }
+
+    .loading-spinner {
+        animation: none;
+    }
+}
+
+/* =====================================================
+   FURIGANA VISIBILITY
+   ===================================================== */
+
+.continuous-content.furigana-hidden ruby rt,
+.continuous-content.furigana-hidden rt {
+    visibility: hidden;
+    font-size: 0;
+}

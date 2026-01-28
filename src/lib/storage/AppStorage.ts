@@ -8,6 +8,7 @@
 
 // eslint-disable-next-line max-classes-per-file
 import { jsonSaveParse } from '@/lib/HelperFunctions.ts';
+import localforage from 'localforage';
 
 type StorageBackend = typeof window.localStorage | null;
 
@@ -99,10 +100,90 @@ export class Storage {
     }
 }
 
+export interface LNProgress {
+    chapterId: string;
+    chapterIndex: number;
+    // For paginated mode
+    pageNumber?: number;
+    totalPages?: number;
+    // For continuous mode
+    scrollPercentage?: number;
+    scrollPosition?: number;
+
+    // NEW: For precise progress tracking
+    textOffset?: number;
+    totalProgress?: number;
+    sentenceText?: string;
+
+    // Metadata
+    lastRead: number;
+}
+
 export class AppStorage {
     static readonly local: Storage = new Storage(AppStorage.getSafeStorage(() => window.localStorage));
 
     static readonly session: Storage = new Storage(AppStorage.getSafeStorage(() => window.sessionStorage));
+
+    // 1. Files Storage
+    static readonly files = localforage.createInstance({
+        name: 'Manatan',
+        storeName: 'ln_files',
+        description: 'Storage for Light Novel EPUB files',
+    });
+
+    // 2. Metadata Storage
+    static readonly lnMetadata = localforage.createInstance({
+        name: 'Manatan',
+        storeName: 'ln_metadata',
+        description: 'Light Novel metadata',
+    });
+
+    // 3. Progress Storage (This was missing causing the first error)
+    static readonly lnProgress = localforage.createInstance({
+        name: 'Manatan',
+        storeName: 'ln_progress',
+        description: 'Reading progress tracking',
+    });
+
+    // --- HELPER METHODS ---
+
+    // Save reading progress
+    static async saveLnProgress(bookId: string, progress: LNProgress): Promise<void> {
+        await this.lnProgress.setItem(bookId, {
+            ...progress,
+            lastRead: Date.now(),
+        });
+    }
+
+    // Get reading progress
+    static async getLnProgress(bookId: string): Promise<LNProgress | null> {
+        try {
+            return await this.lnProgress.getItem<LNProgress>(bookId);
+        } catch (e) {
+            console.warn('Failed to load progress:', e);
+            return null;
+        }
+    }
+
+    // Save an EPUB file
+    static async saveEpubFile(id: string, file: Blob): Promise<void> {
+        await this.files.setItem(id, file);
+    }
+
+    // Get an EPUB file as a URL for the reader
+    static async getEpubUrl(id: string): Promise<string | null> {
+        const blob = await this.files.getItem<Blob>(id);
+        return blob ? URL.createObjectURL(blob) : null;
+    }
+
+    // Delete everything related to a Light Novel
+    static async deleteLnData(id: string): Promise<void> {
+        await Promise.all([
+            this.files.removeItem(id),
+            this.lnMetadata.removeItem(id),
+            this.lnProgress.removeItem(id),
+        ]);
+    }
 
     private static getSafeStorage(getter: () => StorageBackend): StorageBackend {
         try {
