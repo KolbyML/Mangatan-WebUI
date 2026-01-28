@@ -10,6 +10,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import MovieFilterOutlinedIcon from '@mui/icons-material/MovieFilterOutlined';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import NewReleasesOutlinedIcon from '@mui/icons-material/NewReleasesOutlined';
 import HistoryIcon from '@mui/icons-material/History';
@@ -43,6 +44,14 @@ const NAVIGATION_BAR_BASE_ITEMS = [
         title: 'Manga',
         SelectedIconComponent: MenuBookIcon,
         IconComponent: MenuBookOutlinedIcon,
+        show: 'both',
+        moreGroup: NavBarItemMoreGroup.GENERAL,
+    },
+    {
+        path: AppRoutes.ln.path as RestrictedNavBarItem<'both'>['path'],
+        title: 'Light Novels',
+        SelectedIconComponent: AutoStoriesIcon,
+        IconComponent: AutoStoriesIcon,
         show: 'both',
         moreGroup: NavBarItemMoreGroup.GENERAL,
     },
