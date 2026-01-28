@@ -85,6 +85,8 @@ export const ContinuousReader: React.FC<ContinuousReaderProps> = ({
     const hasScrolledToInitial = useRef(false);
     const lastReportedChapter = useRef(initialChapter);
     const isUserScrolling = useRef(false);
+    const isDraggingRef = useRef(false);
+    const startPosRef = useRef({ x: 0, y: 0 });
 
     const [currentChapter, setCurrentChapter] = useState(initialChapter);
     const [scrollProgress, setScrollProgress] = useState(0);
@@ -266,12 +268,29 @@ export const ContinuousReader: React.FC<ContinuousReaderProps> = ({
     }, [navOptions, isVertical, onRelocated, loadChaptersAround, updateProgress, currentProgress]);
 
     const handleClick = useCallback(async (e: React.MouseEvent) => {
+        if (isDraggingRef.current) return;
+
         const target = e.target as HTMLElement;
         if (target.closest('a, button, img, ruby rt, .nav-btn, .reader-progress, .reader-slider-wrap')) return;
 
         const didLookup = await tryLookup(e);
         if (!didLookup) onToggleUI?.();
     }, [onToggleUI, tryLookup]);
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        isDraggingRef.current = false;
+        startPosRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isDraggingRef.current) {
+            const dx = Math.abs(e.clientX - startPosRef.current.x);
+            const dy = Math.abs(e.clientY - startPosRef.current.y);
+            if (dx > 10 || dy > 10) {
+                isDraggingRef.current = true;
+            }
+        }
+    };
 
     return (
         <div className={`continuous-reader-wrapper ${isRTL ? 'rtl-mode' : 'ltr-mode'}`} style={{ backgroundColor: theme.bg, color: theme.fg, direction: isRTL ? 'rtl' : 'ltr' }}>
@@ -281,7 +300,11 @@ export const ContinuousReader: React.FC<ContinuousReaderProps> = ({
                 lineHeight: settings.lnLineHeight || 1.8,
                 letterSpacing: `${settings.lnLetterSpacing || 0}px`,
                 direction: isVertical ? (isRTL ? 'rtl' : 'ltr') : 'ltr',
-            }} onClick={handleClick}>
+            }}
+                onClick={handleClick}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+            >
                 <div ref={contentRef} className={`continuous-content ${isVertical ? 'vertical' : 'horizontal'} ${!settings.lnEnableFurigana ? 'furigana-hidden' : ''}`} style={{
                     writingMode: isVertical ? 'vertical-rl' : 'horizontal-tb',
                     textOrientation: isVertical ? 'mixed' : undefined,

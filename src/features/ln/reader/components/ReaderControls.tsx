@@ -3,9 +3,11 @@ import {
     Drawer, Box, Typography, Slider, Select, MenuItem,
     FormControl, InputLabel, IconButton, Divider, Switch,
     FormControlLabel, ToggleButtonGroup, ToggleButton,
-    SelectChangeEvent,
+    SelectChangeEvent, Button, InputAdornment,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import ClearIcon from '@mui/icons-material/Clear';
 import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
 import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
 import FormatAlignJustifyIcon from '@mui/icons-material/FormatAlignJustify';
@@ -43,6 +45,8 @@ function buildFontFamilyFromCustomName(name: string): string {
 
     const safe = raw.replace(/,/g, '').trim();
 
+    if (!safe) return UNIVERSAL_FALLBACK_STACK;
+
     const needsQuotes = /\s/.test(safe);
     const font = needsQuotes ? `"${safe.replace(/"/g, '')}"` : safe;
 
@@ -58,6 +62,7 @@ interface Props {
     onClose: () => void;
     settings: Settings;
     onUpdateSettings: (key: keyof Settings, value: any) => void;
+    onResetSettings?: () => void;
     theme: { bg: string; fg: string };
 }
 
@@ -83,10 +88,15 @@ const getMenuProps = (theme: { bg: string; fg: string }) => ({
 
 const getSelectStyles = (theme: { bg: string; fg: string }) => ({
     color: theme.fg,
-    '.MuiOutlinedInput-notchedOutline': { borderColor: `${theme.fg}44` },
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: `${theme.fg}44` },
     '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: `${theme.fg}66` },
     '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: theme.fg },
-    '.MuiSvgIcon-root': { color: theme.fg },
+    '& .MuiSvgIcon-root': { color: theme.fg },
+    '& .MuiInputBase-input': { color: theme.fg },
+    '& .MuiSelect-select': { color: theme.fg },
+    '& .MuiInputLabel-root': { color: `${theme.fg}aa` },
+    '& .MuiInputLabel-root.Mui-focused': { color: theme.fg },
+    '& .MuiFormHelperText-root': { color: `${theme.fg}aa` },
 });
 
 export const ReaderControls: React.FC<Props> = ({
@@ -94,6 +104,7 @@ export const ReaderControls: React.FC<Props> = ({
     onClose,
     settings,
     onUpdateSettings,
+    onResetSettings,
     theme,
 }) => {
     const menuProps = getMenuProps(theme);
@@ -228,6 +239,19 @@ export const ReaderControls: React.FC<Props> = ({
                                             placeholder='Example: Ridibatang'
                                             helperText="Font must be installed on your device"
                                             InputLabelProps={{ style: { color: theme.fg } }}
+                                            InputProps={{
+                                                endAdornment: customName ? (
+                                                    <InputAdornment position="end">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => onUpdateSettings('lnFontFamily', UNIVERSAL_FALLBACK_STACK)}
+                                                            sx={{ color: theme.fg }}
+                                                        >
+                                                            <ClearIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ) : null
+                                            }}
                                             sx={selectStyles}
                                         />
                                     )}
@@ -422,6 +446,22 @@ export const ReaderControls: React.FC<Props> = ({
                         sx={{ width: '100%' }}
                     />
                 </Box>
+
+                {onResetSettings && (
+                    <>
+                        <Divider sx={{ my: 3, borderColor: `${theme.fg}22` }} />
+                        <Button
+                            variant="outlined"
+                            color="inherit"
+                            fullWidth
+                            startIcon={<RestartAltIcon />}
+                            onClick={onResetSettings}
+                            sx={{ borderColor: `${theme.fg}44`, color: theme.fg }}
+                        >
+                            Reset Defaults
+                        </Button>
+                    </>
+                )}
             </Box>
         </Drawer>
     );

@@ -213,6 +213,25 @@ export const LNReaderScreen: React.FC = () => {
                 onClose={() => setSettingsOpen(false)}
                 settings={settings}
                 onUpdateSettings={(k, v) => setSettings(p => ({ ...p, [k]: v }))}
+                onResetSettings={() => {
+                    import('@/Manatan/types').then(({ DEFAULT_SETTINGS }) => {
+                        setSettings(prev => ({
+                            ...prev,
+                            lnFontSize: DEFAULT_SETTINGS.lnFontSize,
+                            lnLineHeight: DEFAULT_SETTINGS.lnLineHeight,
+                            lnFontFamily: DEFAULT_SETTINGS.lnFontFamily,
+                            lnTheme: DEFAULT_SETTINGS.lnTheme,
+                            lnReadingDirection: DEFAULT_SETTINGS.lnReadingDirection,
+                            lnPaginationMode: DEFAULT_SETTINGS.lnPaginationMode,
+                            lnPageWidth: DEFAULT_SETTINGS.lnPageWidth,
+                            lnPageMargin: DEFAULT_SETTINGS.lnPageMargin,
+                            lnEnableFurigana: DEFAULT_SETTINGS.lnEnableFurigana,
+                            lnTextAlign: DEFAULT_SETTINGS.lnTextAlign,
+                            lnLetterSpacing: DEFAULT_SETTINGS.lnLetterSpacing,
+                            lnParagraphSpacing: DEFAULT_SETTINGS.lnParagraphSpacing,
+                        }));
+                    });
+                }}
                 theme={theme}
             />
             {/* Dictionary Popup */}

@@ -117,6 +117,7 @@ export interface DictPopupState {
         index?: number;
         startChar: number;
         length: number;
+        rects?: Rect[];
         source?: {
             kind: 'manga' | 'ln';
             bookId?: string;
@@ -192,8 +193,8 @@ export const DEFAULT_SETTINGS: Settings = {
     lnFontSize: 16,
     lnLineHeight: 1.6,
     lnFontFamily: "'Noto Serif JP', serif",
-    lnTheme: 'sepia',
-    lnReadingDirection: 'horizontal',
+    lnTheme: 'light',
+    lnReadingDirection: 'vertical-rtl',
     lnPaginationMode: 'paginated',
     lnPageWidth: 800,
     lnPageMargin: 40,

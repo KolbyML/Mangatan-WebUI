@@ -54,6 +54,8 @@ export const PagedReader: React.FC<PagedReaderProps> = ({
     const touchStartRef = useRef<TouchState | null>(null);
     const wheelTimeoutRef = useRef<number | null>(null);
     const hasNavigatedToInitial = useRef(false);
+    const isDraggingRef = useRef(false);
+    const startPosRef = useRef({ x: 0, y: 0 });
 
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [currentSection, setCurrentSection] = useState(initialChapter);
@@ -349,6 +351,8 @@ export const PagedReader: React.FC<PagedReaderProps> = ({
 
     // Click handler - only center zone toggles UI
     const handleClick = useCallback(async (e: React.MouseEvent) => {
+        if (isDraggingRef.current) return;
+
         const target = e.target as HTMLElement;
         if (target.closest('a, button, img, ruby rt, .nav-btn, .reader-progress, .reader-slider-wrap')) return;
 
@@ -358,7 +362,17 @@ export const PagedReader: React.FC<PagedReaderProps> = ({
 
     // Touch handlers
     const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        isDraggingRef.current = false;
+        startPosRef.current = { x: e.nativeEvent.touches[0].clientX, y: e.nativeEvent.touches[0].clientY };
         touchStartRef.current = createTouchState(e.nativeEvent);
+    }, []);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        const dx = Math.abs(e.nativeEvent.touches[0].clientX - startPosRef.current.x);
+        const dy = Math.abs(e.nativeEvent.touches[0].clientY - startPosRef.current.y);
+        if (dx > 10 || dy > 10) {
+            isDraggingRef.current = true;
+        }
     }, []);
 
     const handleTouchEndEvent = useCallback((e: React.TouchEvent) => {
@@ -367,7 +381,7 @@ export const PagedReader: React.FC<PagedReaderProps> = ({
         const result = handleTouchEnd(e.nativeEvent, touchStartRef.current, navOptions, navCallbacks);
         touchStartRef.current = null;
 
-        if (!result) {
+        if (!result && !isDraggingRef.current) {
             onToggleUI?.();
         }
     }, [navOptions, navCallbacks, onToggleUI]);
@@ -403,6 +417,7 @@ export const PagedReader: React.FC<PagedReaderProps> = ({
                 }}
                 onClick={handleClick}
                 onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEndEvent}
             >
                 {/* Content with CSS columns */}
@@ -431,10 +446,12 @@ export const PagedReader: React.FC<PagedReaderProps> = ({
 
                         // Container dimensions
                         ...(isVertical ? {
+                            // Vertical: width is fixed (viewport), height expands for columns
                             width: `${dimensions.width}px`,
                             height: 'auto',
                             minHeight: `${dimensions.height}px`,
                         } : {
+                            // Horizontal: height is fixed (viewport), width expands for columns  
                             height: `${dimensions.height}px`,
                             width: 'auto',
                             minWidth: `${dimensions.width}px`,

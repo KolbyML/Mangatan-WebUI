@@ -356,7 +356,43 @@ const AnkiButtons: React.FC<{
             )}
         </>
     );
-}
+};
+
+const HighlightOverlay = () => {
+    const { dictPopup } = useOCR();
+    if (!dictPopup.visible || !dictPopup.highlight?.rects) return null;
+
+    return (
+        <div
+            className="dictionary-highlight-overlay"
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 2147483645
+            }}
+        >
+            {dictPopup.highlight.rects.map((rect, i) => (
+                <div
+                    key={i}
+                    style={{
+                        position: 'fixed',
+                        left: rect.x,
+                        top: rect.y,
+                        width: rect.width,
+                        height: rect.height,
+                        backgroundColor: 'rgba(255, 255, 0, 0.3)',
+                        borderRadius: '2px',
+                        borderBottom: '2px solid rgba(255, 215, 0, 0.8)',
+                    }}
+                />
+            ))}
+        </div>
+    );
+};
 
 export const YomitanPopup = () => {
     const { dictPopup, setDictPopup, notifyPopupClosed, settings } = useOCR();
@@ -435,7 +471,8 @@ export const YomitanPopup = () => {
 
     return createPortal(
         <>
-            <div 
+            <HighlightOverlay />
+            <div
                 ref={backdropRef}
                 className="yomitan-backdrop"
                 style={{
@@ -448,14 +485,14 @@ export const YomitanPopup = () => {
                 }}
             />
 
-            <div 
-                ref={popupRef} 
+            <div
+                ref={popupRef}
                 className="yomitan-popup"
-                style={popupStyle} 
+                style={popupStyle}
                 onMouseDown={e => e.stopPropagation()}
                 onTouchStart={e => e.stopPropagation()}
                 onClick={e => e.stopPropagation()}
-                onWheel={e => e.stopPropagation()} 
+                onWheel={e => e.stopPropagation()}
             >
                 {dictPopup.isLoading && <div style={{ textAlign: 'center', padding: '20px', color: '#aaa' }}>Scanning...</div>}
 

@@ -5,6 +5,7 @@
 import { useCallback } from 'react';
 import { useOCR } from '@/Manatan/context/OCRContext';
 import { lookupYomitan } from '@/Manatan/utils/api';
+import { Rect } from '@/Manatan/types';
 
 export function useTextLookup() {
     const { settings, setDictPopup } = useOCR();
@@ -29,7 +30,31 @@ export function useTextLookup() {
         const node = range.startContainer;
         let offset = range.startOffset;
 
-        // Adjust offset
+        // Check if click is actually on or near character
+        try {
+            const charRange = document.createRange();
+            const textLen = node.textContent?.length || 0;
+
+            const checkOffset = offset >= textLen ? Math.max(0, textLen - 1) : offset;
+            charRange.setStart(node, checkOffset);
+            charRange.setEnd(node, checkOffset + 1);
+
+            const rect = charRange.getBoundingClientRect();
+            const marginX = 20;
+            const marginY = 10;
+
+            const isInside = (
+                x >= rect.left - marginX &&
+                x <= rect.right + marginX &&
+                y >= rect.top - marginY &&
+                y <= rect.bottom + marginY
+            );
+
+            if (!isInside) return null;
+        } catch (err) {
+            // If range creation fails, fallback to allowing it (legacy behavior)
+        }
+
         if (offset > 0) {
             try {
                 const checkRange = document.createRange();
@@ -84,7 +109,10 @@ export function useTextLookup() {
         return { sentence: fullText, byteOffset: encoder.encode(prefix).length };
     }, []);
 
-   
+    /**
+     * Attempt to lookup text at click position
+     * @returns true if lookup was triggered, false if clicked on empty space
+     */
     const tryLookup = useCallback(async (e: React.MouseEvent): Promise<boolean> => {
         if (!settings.enableYomitan) return false;
 
@@ -102,9 +130,11 @@ export function useTextLookup() {
         const charInfo = getCharacterAtPoint(e.clientX, e.clientY);
         if (!charInfo) return false;
 
+        // Check if we actually clicked on text (not whitespace)
         const text = charInfo.node.textContent || '';
         if (!text.trim()) return false;
 
+        // Check if the character at offset is whitespace
         const charAtOffset = text[charInfo.offset];
         if (!charAtOffset || /\s/.test(charAtOffset)) return false;
 
@@ -112,7 +142,19 @@ export function useTextLookup() {
 
         if (!sentence.trim()) return false;
 
-        // Show loading state
+        // Calculate Initial Highlight Rect (Length 1)
+        let initialRects: Rect[] = [];
+        try {
+            const range = document.createRange();
+            range.setStart(charInfo.node, charInfo.offset);
+            range.setEnd(charInfo.node, Math.min(charInfo.node.textContent?.length || 0, charInfo.offset + 1));
+            const clientRects = range.getClientRects();
+            initialRects = Array.from(clientRects).map(r => ({
+                x: r.left, y: r.top, width: r.width, height: r.height
+            }));
+        } catch (e) { }
+
+        // Show loading state with initial highlight
         setDictPopup({
             visible: true,
             x: e.clientX,
@@ -123,6 +165,7 @@ export function useTextLookup() {
             highlight: {
                 startChar: charInfo.offset,
                 length: 1,
+                rects: initialRects,
                 source: { kind: 'ln' }
             },
             context: { sentence }
@@ -143,6 +186,57 @@ export function useTextLookup() {
                 systemLoading: true
             }));
         } else {
+            // Calculate Highlight Rects
+            let rects: Rect[] = [];
+            const matchLen = (results && results[0]?.matchLen) || 1;
+
+            try {
+                const highlightRange = document.createRange();
+                highlightRange.setStart(charInfo.node, charInfo.offset);
+
+                // Traverse text nodes to find word end that spans MatchLen chars
+                const contextElement = charInfo.node.parentElement || document.body;
+                const walker = document.createTreeWalker(contextElement, NodeFilter.SHOW_TEXT);
+
+                // Move walker to current node
+                while (walker.nextNode() && walker.currentNode !== charInfo.node);
+
+                let remaining = matchLen;
+                let endNode = charInfo.node;
+                let endOffset = charInfo.offset;
+
+                let currentNode: Node | null = charInfo.node;
+                while (currentNode && remaining > 0) {
+                    const nodeText = currentNode.textContent || '';
+                    const availableInNode = nodeText.length - (currentNode === charInfo.node ? charInfo.offset : 0);
+
+                    if (remaining <= availableInNode) {
+                        endNode = currentNode;
+                        endOffset = (currentNode === charInfo.node ? charInfo.offset : 0) + remaining;
+                        remaining = 0;
+                    } else {
+                        remaining -= availableInNode;
+                        currentNode = walker.nextNode();
+                        if (currentNode) {
+                            endNode = currentNode;
+                            endOffset = currentNode.textContent?.length || 0;
+                        }
+                    }
+                }
+
+                highlightRange.setEnd(endNode, endOffset);
+
+                const clientRects = highlightRange.getClientRects();
+                rects = Array.from(clientRects).map(r => ({
+                    x: r.left,
+                    y: r.top,
+                    width: r.width,
+                    height: r.height
+                }));
+            } catch (err) {
+                console.error("Failed to calculate highlight rects", err);
+            }
+
             setDictPopup(prev => ({
                 ...prev,
                 results: results || [],
@@ -150,7 +244,8 @@ export function useTextLookup() {
                 systemLoading: false,
                 highlight: prev.highlight ? {
                     ...prev.highlight,
-                    length: (results && results[0]?.matchLen) || 1
+                    length: matchLen,
+                    rects
                 } : undefined
             }));
         }
