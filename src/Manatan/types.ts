@@ -187,7 +187,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ankiDeck: '',
     ankiModel: '',
     ankiFieldMap: {},
-    ankiCheckDuplicates: true
+    ankiCheckDuplicates: true,
     // LN Defaults
     lnFontSize: 16,
     lnLineHeight: 1.6,
