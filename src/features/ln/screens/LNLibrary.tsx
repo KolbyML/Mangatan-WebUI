@@ -1,11 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Typography, Grid, IconButton, LinearProgress, Skeleton } from '@mui/material';
+import {
+    Box,
+    Button,
+    Card,
+    CardActionArea,
+    Typography,
+    IconButton,
+    LinearProgress,
+    Skeleton,
+    Stack,
+    MenuItem,
+    ListItemIcon,
+} from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DeleteIcon from '@mui/icons-material/Delete';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { styled } from '@mui/material/styles';
 import { AppStorage } from '@/lib/storage/AppStorage';
 import { AppRoutes } from '@/base/AppRoute.constants';
 import JSZip from 'jszip';
+import PopupState, { bindMenu, bindTrigger } from 'material-ui-popup-state';
+import { useLongPress } from 'use-long-press';
+import { Menu } from '@/base/components/menu/Menu.tsx';
+import { MUIUtil } from '@/lib/mui/MUI.util.ts';
+import { MediaQuery } from '@/base/utils/MediaQuery.tsx';
+import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
+import { TypographyMaxLines } from '@/base/components/texts/TypographyMaxLines.tsx';
+import { MANGA_COVER_ASPECT_RATIO } from '@/features/manga/Manga.constants.ts';
+import { useAppAction } from '@/features/navigation-bar/hooks/useAppAction.ts';
+import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
+import { useMetadataServerSettings } from '@/features/settings/services/ServerSettingsMetadata.ts';
+import { useResizeObserver } from '@/base/hooks/useResizeObserver.tsx';
+import { useNavBarContext } from '@/features/navigation-bar/NavbarContext.tsx';
 import { resolvePath } from '../reader/utils/pathUtils';
 
 interface LNMetadata {
@@ -20,14 +47,247 @@ interface LNMetadata {
     hasProgress?: boolean;
 }
 
+const BottomGradient = styled('div')({
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    height: '30%',
+    background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%)',
+});
+
+const BottomGradientDoubledDown = styled('div')({
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    height: '20%',
+    background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%)',
+});
+
+type LNLibraryCardProps = {
+    ln: LNMetadata;
+    onOpen: (id: string) => void;
+    onDelete: (id: string, event: React.MouseEvent) => void;
+};
+
+const LNLibraryCard = ({ ln, onOpen, onDelete }: LNLibraryCardProps) => {
+    const preventMobileContextMenu = MediaQuery.usePreventMobileContextMenu();
+    const optionButtonRef = useRef<HTMLButtonElement>(null);
+    const longPressBind = useLongPress(
+        useCallback(
+            (e: any, { context }: any) => {
+                (context as () => void)?.();
+            },
+            [],
+        ),
+    );
+
+    return (
+        <PopupState variant="popover" popupId={`ln-card-action-menu-${ln.id}`}>
+            {(popupState) => (
+                <>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            m: 0.25,
+                            '@media (hover: hover) and (pointer: fine)': {
+                                '&:hover .ln-option-button': {
+                                    visibility: 'visible',
+                                    pointerEvents: 'all',
+                                },
+                            },
+                        }}
+                    >
+                        <Card
+                            sx={{
+                                aspectRatio: MANGA_COVER_ASPECT_RATIO,
+                                display: 'flex',
+                            }}
+                        >
+                            <CardActionArea
+                                {...longPressBind(() => popupState.open(optionButtonRef.current))}
+                                onClick={() => !ln.isProcessing && onOpen(ln.id)}
+                                onContextMenu={preventMobileContextMenu}
+                                sx={{
+                                    position: 'relative',
+                                    height: '100%',
+                                    cursor: ln.isProcessing ? 'wait' : 'pointer',
+                                    opacity: ln.isProcessing ? 0.7 : 1,
+                                }}
+                            >
+                                {ln.isProcessing ? (
+                                    <Skeleton variant="rectangular" width="100%" height="100%" />
+                                ) : ln.cover ? (
+                                    <Box
+                                        component="img"
+                                        src={ln.cover}
+                                        alt={ln.title}
+                                        loading="lazy"
+                                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                ) : (
+                                    <Stack
+                                        sx={{
+                                            height: '100%',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            bgcolor: (theme) => theme.palette.background.default,
+                                        }}
+                                    >
+                                        <Typography variant="h3" color="text.disabled">
+                                            Aa
+                                        </Typography>
+                                    </Stack>
+                                )}
+                                <Stack
+                                    direction="row"
+                                    sx={{
+                                        alignItems: 'start',
+                                        justifyContent: 'space-between',
+                                        position: 'absolute',
+                                        top: (theme) => theme.spacing(1),
+                                        left: (theme) => theme.spacing(1),
+                                        right: (theme) => theme.spacing(1),
+                                    }}
+                                >
+                                    {ln.hasProgress && !ln.isProcessing ? (
+                                        <Box
+                                            sx={{
+                                                bgcolor: 'primary.main',
+                                                color: 'white',
+                                                px: 1,
+                                                py: 0.5,
+                                                borderRadius: 1,
+                                                fontSize: '0.75rem',
+                                                fontWeight: 'bold',
+                                                boxShadow: 2,
+                                            }}
+                                        >
+                                            READING
+                                        </Box>
+                                    ) : (
+                                        <Box />
+                                    )}
+                                    <CustomTooltip title="Options">
+                                        <IconButton
+                                            ref={optionButtonRef}
+                                            {...MUIUtil.preventRippleProp(bindTrigger(popupState), {
+                                                onClick: (event) => {
+                                                    event.stopPropagation();
+                                                    event.preventDefault();
+                                                    popupState.open();
+                                                },
+                                            })}
+                                            className="ln-option-button"
+                                            size="small"
+                                            sx={{
+                                                minWidth: 'unset',
+                                                paddingX: 0,
+                                                paddingY: '2.5px',
+                                                backgroundColor: 'primary.main',
+                                                color: 'common.white',
+                                                '&:hover': {
+                                                    backgroundColor: 'primary.main',
+                                                },
+                                                visibility: popupState.isOpen ? 'visible' : 'hidden',
+                                                pointerEvents: 'none',
+                                                '@media not (pointer: fine)': {
+                                                    visibility: 'hidden',
+                                                    width: 0,
+                                                    height: 0,
+                                                    p: 0,
+                                                    m: 0,
+                                                },
+                                            }}
+                                        >
+                                            <MoreVertIcon />
+                                        </IconButton>
+                                    </CustomTooltip>
+                                </Stack>
+                                <>
+                                    <BottomGradient />
+                                    <BottomGradientDoubledDown />
+                                </>
+                                <Stack
+                                    direction="row"
+                                    sx={{
+                                        justifyContent: 'space-between',
+                                        alignItems: 'end',
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        width: '100%',
+                                        p: 1,
+                                        gap: 1,
+                                    }}
+                                >
+                                    {ln.isProcessing ? (
+                                        <Skeleton variant="text" width="70%" />
+                                    ) : (
+                                        <CustomTooltip title={ln.title} placement="top">
+                                            <TypographyMaxLines
+                                                component="h3"
+                                                sx={{
+                                                    color: 'white',
+                                                    textShadow: '0px 0px 3px #000000',
+                                                }}
+                                            >
+                                                {ln.title}
+                                            </TypographyMaxLines>
+                                        </CustomTooltip>
+                                    )}
+                                </Stack>
+                            </CardActionArea>
+                        </Card>
+                    </Box>
+                    {popupState.isOpen && (
+                        <Menu {...bindMenu(popupState)}>
+                            {(onClose) => (
+                                <MenuItem
+                                    onClick={(event) => {
+                                        onClose();
+                                        onDelete(ln.id, event);
+                                    }}
+                                >
+                                    <ListItemIcon>
+                                        <DeleteIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    Delete
+                                </MenuItem>
+                            )}
+                        </Menu>
+                    )}
+                </>
+            )}
+        </PopupState>
+    );
+};
+
 export const LNLibrary: React.FC = () => {
     const navigate = useNavigate();
     const [library, setLibrary] = useState<LNMetadata[]>([]);
     const [loading, setLoading] = useState(false);
+    const { navBarWidth } = useNavBarContext();
+    const {
+        settings: { mangaGridItemWidth },
+    } = useMetadataServerSettings();
+    const gridWrapperRef = useRef<HTMLDivElement>(null);
+    const [dimensions, setDimensions] = useState(
+        gridWrapperRef.current?.offsetWidth ?? Math.max(0, document.documentElement.offsetWidth - navBarWidth),
+    );
 
     useEffect(() => {
         loadLibrary();
     }, []);
+
+    useResizeObserver(
+        gridWrapperRef,
+        useCallback(() => {
+            const gridWidth = gridWrapperRef.current?.offsetWidth;
+            setDimensions(gridWidth ?? document.documentElement.offsetWidth - navBarWidth);
+        }, [navBarWidth]),
+    );
+
+    const gridColumns = Math.max(1, Math.ceil(dimensions / mangaGridItemWidth));
 
     const loadLibrary = async () => {
         try {
@@ -44,7 +304,7 @@ export const LNLibrary: React.FC = () => {
         }
     };
 
-    const resizeCover = (blob: Blob): Promise<string> => {
+    const resizeCover = useCallback((blob: Blob): Promise<string> => {
         return new Promise((resolve) => {
             const img = new Image();
             const url = URL.createObjectURL(blob);
@@ -72,9 +332,9 @@ export const LNLibrary: React.FC = () => {
             };
             img.src = url;
         });
-    };
+    }, []);
 
-    const processSingleFile = async (file: File, tempId: string) => {
+    const processSingleFile = useCallback(async (file: File, tempId: string) => {
         console.group(`Processing: ${file.name}`);
         let isSuccess = false;
 
@@ -165,9 +425,9 @@ export const LNLibrary: React.FC = () => {
         } finally {
             console.groupEnd();
         }
-    };
+    }, [resizeCover]);
 
-    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.length) return;
 
         const files = Array.from(e.target.files);
@@ -189,31 +449,36 @@ export const LNLibrary: React.FC = () => {
 
         setLoading(false);
         e.target.value = '';
-    };
+    }, [processSingleFile]);
 
-    const handleDelete = async (id: string, e: React.MouseEvent) => {
+    const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!window.confirm("Delete this book?")) return;
         setLibrary(prev => prev.filter(ln => ln.id !== id));
         await AppStorage.deleteLnData(id);
-    };
+    }, []);
+
+    useAppTitle('Light Novels');
+    const appAction = useMemo(
+        () => (
+            <Button
+                color="inherit"
+                component="label"
+                startIcon={<UploadFileIcon />}
+                disabled={loading}
+                sx={{ textTransform: 'none' }}
+            >
+                {loading ? 'Processing...' : 'Import EPUB'}
+                <input type="file" accept=".epub" multiple hidden onChange={handleImport} />
+            </Button>
+        ),
+        [handleImport, loading],
+    );
+    useAppAction(appAction, [appAction]);
 
     return (
-        <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4">Light Novels</Typography>
-                <Button
-                    variant="contained"
-                    component="label"
-                    startIcon={<UploadFileIcon />}
-                    disabled={loading}
-                >
-                    {loading ? 'Processing...' : 'Import EPUB'}
-                    <input type="file" accept=".epub" multiple hidden onChange={handleImport} />
-                </Button>
-            </Box>
-
-            {loading && <LinearProgress sx={{ mb: 2 }} />}
+        <Box sx={{ p: 1 }}>
+            {loading && <LinearProgress sx={{ mb: 1 }} />}
 
             {library.length === 0 && !loading && (
                 <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 10 }}>
@@ -221,69 +486,24 @@ export const LNLibrary: React.FC = () => {
                 </Typography>
             )}
 
-            <Grid container spacing={2}>
+            <Box
+                ref={gridWrapperRef}
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+                    gap: 1,
+                }}
+            >
                 {library.map((ln) => (
-                    <Grid item xs={6} sm={4} md={3} lg={2} key={ln.id}>
-                        <Card
-                            sx={{
-                                cursor: ln.isProcessing ? 'wait' : 'pointer',
-                                height: '100%',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                opacity: ln.isProcessing ? 0.7 : 1,
-                                position: 'relative'
-                            }}
-                            onClick={() => !ln.isProcessing && navigate(AppRoutes.ln.childRoutes.reader.path(ln.id))}
-                        >
-                            <Box sx={{ height: 200, bgcolor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                {ln.isProcessing ? (
-                                    <Skeleton variant="rectangular" width="100%" height={200} />
-                                ) : ln.cover ? (
-                                    <img src={ln.cover} alt={ln.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                                ) : (
-                                    <Typography variant="h3" color="text.disabled">Aa</Typography>
-                                )}
-                            </Box>
-
-                            {ln.hasProgress && !ln.isProcessing && (
-                                <Box sx={{
-                                    position: 'absolute', top: 5, right: 5,
-                                    bgcolor: 'primary.main', color: 'white',
-                                    px: 1, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 'bold',
-                                    boxShadow: 2
-                                }}>
-                                    READING
-                                </Box>
-                            )}
-
-                            <CardContent sx={{ flexGrow: 1, position: 'relative', p: 1.5 }}>
-                                {ln.isProcessing ? (
-                                    <>
-                                        <Skeleton variant="text" width="90%" />
-                                        <Skeleton variant="text" width="60%" />
-                                    </>
-                                ) : (
-                                    <>
-                                        <Typography variant="subtitle2" noWrap title={ln.title} sx={{ fontWeight: 'bold' }}>
-                                            {ln.title}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary" noWrap display="block">
-                                            {ln.author}
-                                        </Typography>
-                                        <IconButton
-                                            size="small"
-                                            sx={{ position: 'absolute', bottom: 0, right: 0 }}
-                                            onClick={(e) => handleDelete(ln.id, e)}
-                                        >
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </Grid>
+                    <Box key={ln.id}>
+                        <LNLibraryCard
+                            ln={ln}
+                            onOpen={(id) => navigate(AppRoutes.ln.childRoutes.reader.path(id))}
+                            onDelete={handleDelete}
+                        />
+                    </Box>
                 ))}
-            </Grid>
+            </Box>
         </Box>
     );
 };

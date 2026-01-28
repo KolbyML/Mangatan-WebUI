@@ -5,6 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 import { useOCR } from '@/Manatan/context/OCRContext';
+import ManatanLogo from '@/Manatan/assets/manatan_logo.png';
 import { AppStorage } from '@/lib/storage/AppStorage';
 import { useBookParser } from "../hooks/useBookParser";
 import { VirtualReader } from "../components/VirtualReader";
@@ -22,7 +23,7 @@ const THEMES = {
 export const LNReaderScreen: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { settings, setSettings } = useOCR();
+    const { settings, setSettings, openSettings } = useOCR();
 
     const [fileBlob, setFileBlob] = useState<Blob | null>(null);
     const [lastReadIndex, setLastReadIndex] = useState(0);
@@ -200,9 +201,19 @@ export const LNReaderScreen: React.FC = () => {
                             >
                                 {metadata?.title}
                             </Typography>
-                            <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: theme.fg }}>
-                                <SettingsIcon />
-                            </IconButton>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <IconButton onClick={() => openSettings()} sx={{ color: theme.fg }} aria-label="Manatan Settings">
+                                    <Box
+                                        component="img"
+                                        src={ManatanLogo}
+                                        alt="Manatan"
+                                        sx={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+                                    />
+                                </IconButton>
+                                <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: theme.fg }}>
+                                    <SettingsIcon />
+                                </IconButton>
+                            </Box>
                         </Box>
                     </Fade>
                 )}
