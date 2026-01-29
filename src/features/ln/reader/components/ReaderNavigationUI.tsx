@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import './ReaderNavigationUI.css';
 
@@ -7,6 +5,7 @@ interface ReaderNavigationUIProps {
     visible: boolean;
     onNext: () => void;
     onPrev: () => void;
+    // onOpenToc removed from here to prevent errors
     canGoNext: boolean;
     canGoPrev: boolean;
     currentPage?: number;
@@ -30,8 +29,6 @@ export const ReaderNavigationUI: React.FC<ReaderNavigationUIProps> = ({
     canGoPrev,
     currentPage,
     totalPages,
-    currentChapter,
-    totalChapters,
     progress,
     totalBookProgress,
     showSlider = false,
@@ -42,11 +39,11 @@ export const ReaderNavigationUI: React.FC<ReaderNavigationUIProps> = ({
 }) => {
     if (!visible) return null;
 
-
     const displayProgress = totalBookProgress !== undefined ? totalBookProgress : progress;
 
     return (
         <div className="reader-navigation-ui">
+            {/* Nav Buttons */}
             <button
                 className={`nav-btn prev ${isVertical ? 'vertical' : 'horizontal'}`}
                 onClick={(e) => { e.stopPropagation(); onPrev(); }}
@@ -63,22 +60,30 @@ export const ReaderNavigationUI: React.FC<ReaderNavigationUIProps> = ({
                 ›
             </button>
 
+            {/* Progress Bar */}
             <div
                 className="reader-progress"
                 style={{ backgroundColor: `${theme.bg}dd`, color: theme.fg }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="progress-row">
+                <div className="progress-row" style={{ justifyContent: 'center' }}>
+
+                    {/* Visual Page Count (Only visible in Paged Mode) */}
                     {mode === 'paged' && currentPage !== undefined && totalPages !== undefined ? (
                         <>
-                            <span className="progress-text">{currentPage + 1}/{totalPages}</span>
-                            <span className="progress-sep">·</span>
+                            <span className="progress-text">
+                                Page {currentPage + 1} / {totalPages}
+                            </span>
+                            <span className="progress-sep" style={{ margin: '0 8px' }}>·</span>
                         </>
                     ) : null}
-                    <span className="progress-chapter">Page {currentChapter + 1}/{totalChapters}</span>
-                    <span className="progress-sep">·</span>
-                    <span className="progress-percent">{displayProgress.toFixed(1)}%</span>
+
+                    <span className="progress-percent" style={{ fontWeight: 'bold' }}>
+                        {displayProgress.toFixed(1)}%
+                    </span>
+
                 </div>
+
                 <div className="progress-bar">
                     <div
                         className="progress-fill"
@@ -87,6 +92,7 @@ export const ReaderNavigationUI: React.FC<ReaderNavigationUIProps> = ({
                 </div>
             </div>
 
+            {/* Slider */}
             {showSlider && mode === 'paged' && totalPages && totalPages > 1 && onPageChange && currentPage !== undefined && (
                 <div
                     className="reader-slider-wrap"

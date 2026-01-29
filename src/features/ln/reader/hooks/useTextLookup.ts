@@ -30,7 +30,6 @@ export function useTextLookup() {
         const node = range.startContainer;
         let offset = range.startOffset;
 
-        // Check if click is actually on or near character
         try {
             const charRange = document.createRange();
             const textLen = node.textContent?.length || 0;
@@ -40,8 +39,9 @@ export function useTextLookup() {
             charRange.setEnd(node, checkOffset + 1);
 
             const rect = charRange.getBoundingClientRect();
-            const marginX = 20;
-            const marginY = 10;
+
+            const marginX = 15;
+            const marginY = 25;
 
             const isInside = (
                 x >= rect.left - marginX &&
@@ -52,7 +52,6 @@ export function useTextLookup() {
 
             if (!isInside) return null;
         } catch (err) {
-            // If range creation fails, fallback to allowing it (legacy behavior)
         }
 
         if (offset > 0) {
@@ -62,11 +61,12 @@ export function useTextLookup() {
                 checkRange.setEnd(node, offset);
                 const rect = checkRange.getBoundingClientRect();
 
-                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                const margin = 15;
+                if (x >= rect.left - margin && x <= rect.right + margin &&
+                    y >= rect.top - margin && y <= rect.bottom + margin) {
                     offset -= 1;
                 }
             } catch (e) {
-                // Ignore
             }
         }
 
@@ -104,9 +104,39 @@ export function useTextLookup() {
             totalOffset += (currentNode.textContent || '').length;
         }
 
+
+        // Japanese sentence boundaries: 。！？
+        // English sentence boundaries: . ! ?
+        const sentenceEndRegex = /[。！？.!?]/g;
+
+        // Find sentence start (look backwards for previous sentence end)
+        let sentenceStart = 0;
+        for (let i = totalOffset - 1; i >= 0; i--) {
+            if (sentenceEndRegex.test(fullText[i])) {
+                sentenceStart = i + 1;
+                break;
+            }
+        }
+
+        // Find sentence end (look forwards for next sentence end)
+        let sentenceEnd = fullText.length;
+        for (let i = totalOffset; i < fullText.length; i++) {
+            if (sentenceEndRegex.test(fullText[i])) {
+                sentenceEnd = i + 1; // Include the punctuation
+                break;
+            }
+        }
+
+        // Extract the sentence
+        const sentence = fullText.substring(sentenceStart, sentenceEnd).trim();
+
+        // Calculate byte offset within the sentence
+        const offsetInSentence = totalOffset - sentenceStart;
         const encoder = new TextEncoder();
-        const prefix = fullText.substring(0, totalOffset);
-        return { sentence: fullText, byteOffset: encoder.encode(prefix).length };
+        const sentencePrefix = sentence.substring(0, offsetInSentence);
+        const byteOffset = encoder.encode(sentencePrefix).length;
+
+        return { sentence, byteOffset };
     }, []);
 
     /**

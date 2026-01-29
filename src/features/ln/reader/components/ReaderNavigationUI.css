@@ -47,15 +47,15 @@
     cursor: default;
 }
 
-/* Horizontal mode - left/right */
+/* Horizontal mode */
 .nav-btn.horizontal.prev {
-    left: 12px;
+    left: calc(12px + env(safe-area-inset-left));
     top: 50%;
     transform: translateY(-50%);
 }
 
 .nav-btn.horizontal.next {
-    right: 12px;
+    right: calc(12px + env(safe-area-inset-right));
     top: 50%;
     transform: translateY(-50%);
 }
@@ -68,15 +68,15 @@
     transform: translateY(-50%) scale(0.9);
 }
 
-/* Vertical mode - swapped for RTL feel */
+/* Vertical mode  */
 .nav-btn.vertical.prev {
-    right: 12px;
+    right: calc(12px + env(safe-area-inset-right));
     top: 50%;
     transform: translateY(-50%);
 }
 
 .nav-btn.vertical.next {
-    left: 12px;
+    left: calc(12px + env(safe-area-inset-left));
     top: 50%;
     transform: translateY(-50%);
 }
@@ -95,7 +95,7 @@
 
 .reader-progress {
     position: fixed;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -114,6 +114,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    justify-content: center;
+    min-width: 120px;
 }
 
 .progress-text {
@@ -150,7 +152,7 @@
 
 .reader-slider-wrap {
     position: fixed;
-    bottom: 58px;
+    bottom: calc(58px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     width: 50%;
@@ -200,13 +202,13 @@
     }
 
     .reader-progress {
-        bottom: 10px;
+        bottom: calc(10px + env(safe-area-inset-bottom));
         padding: 6px 14px;
         font-size: 11px;
     }
 
     .reader-slider-wrap {
-        bottom: 48px;
+        bottom: calc(48px + env(safe-area-inset-bottom));
         width: 65%;
     }
 }
@@ -233,4 +235,25 @@
     .nav-btn {
         transition: none;
     }
+}
+
+/* =====================================================
+   TOC BUTTON
+   ===================================================== */
+
+.toc-btn {
+    position: fixed;
+    top: calc(60px + env(safe-area-inset-top));
+    right: calc(20px + env(safe-area-inset-right));
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    z-index: 150;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }

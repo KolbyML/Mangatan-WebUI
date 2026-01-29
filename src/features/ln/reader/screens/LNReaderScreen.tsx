@@ -1,10 +1,19 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, CircularProgress, Fade, IconButton, Typography } from '@mui/material';
+import {
+    Box,
+    CircularProgress,
+    Fade,
+    IconButton,
+    Typography,
+    Drawer,
+    List,
+    ListItemButton,
+    ListItemText
+} from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SettingsIcon from '@mui/icons-material/Settings';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 
 import { useOCR } from '@/Manatan/context/OCRContext';
 import ManatanLogo from '@/Manatan/assets/manatan_logo.png';
@@ -28,6 +37,7 @@ export const LNReaderScreen: React.FC = () => {
 
     const [savedProgress, setSavedProgress] = useState<any>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [tocOpen, setTocOpen] = useState(false);
     const [progressLoaded, setProgressLoaded] = useState(false);
 
 
@@ -43,12 +53,23 @@ export const LNReaderScreen: React.FC = () => {
         });
     }, [id]);
 
-
     const { content, isLoading, error } = useBookContent(id);
 
     const themeKey = (settings.lnTheme || 'dark') as keyof typeof THEMES;
     const theme = THEMES[themeKey] || THEMES.dark;
 
+    // Handle jumping to a specific chapter from TOC
+    const handleChapterClick = (index: number) => {
+        setSavedProgress((prev: any) => ({
+            ...prev,
+            chapterIndex: index,
+            // Reset page/offset when jumping to a new chapter start
+            pageNumber: 0,
+            chapterCharOffset: 0,
+            sentenceText: '',
+        }));
+        setTocOpen(false);
+    };
 
     if (isLoading || !progressLoaded) {
         return (
@@ -71,7 +92,6 @@ export const LNReaderScreen: React.FC = () => {
             </Box>
         );
     }
-
 
     if (error || !content) {
         return (
@@ -105,7 +125,7 @@ export const LNReaderScreen: React.FC = () => {
     return (
         <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
             <VirtualReader
-                key={id}
+                key={`${id}-${savedProgress?.chapterIndex}`}
                 bookId={id!}
                 items={content.chapters}
                 stats={content.stats}
@@ -118,6 +138,7 @@ export const LNReaderScreen: React.FC = () => {
                             sentenceText: savedProgress.sentenceText,
                             chapterIndex: savedProgress.chapterIndex,
                             pageIndex: savedProgress.pageNumber,
+                            chapterCharOffset: savedProgress.chapterCharOffset,
                             totalProgress: savedProgress.totalProgress,
                         }
                         : undefined
@@ -139,9 +160,12 @@ export const LNReaderScreen: React.FC = () => {
                                 pointerEvents: showUI ? 'auto' : 'none',
                             }}
                         >
+                            {/* Back Button */}
                             <IconButton onClick={() => navigate(-1)} sx={{ color: theme.fg }}>
                                 <ArrowBackIcon />
                             </IconButton>
+
+                            {/* Title */}
                             <Typography
                                 sx={{
                                     color: theme.fg,
@@ -156,7 +180,10 @@ export const LNReaderScreen: React.FC = () => {
                             >
                                 {content.metadata.title}
                             </Typography>
+
+                            {/* Right Side Icons */}
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                {/* Manatan Logo / OCR Settings */}
                                 <IconButton onClick={() => openSettings()} sx={{ color: theme.fg }}>
                                     <Box
                                         component="img"
@@ -165,6 +192,13 @@ export const LNReaderScreen: React.FC = () => {
                                         sx={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
                                     />
                                 </IconButton>
+
+                                {/* Table of Contents Button */}
+                                <IconButton onClick={() => setTocOpen(true)} sx={{ color: theme.fg }}>
+                                    <FormatListBulletedIcon />
+                                </IconButton>
+
+                                {/* Reader Settings Button */}
                                 <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: theme.fg }}>
                                     <SettingsIcon />
                                 </IconButton>
@@ -173,6 +207,70 @@ export const LNReaderScreen: React.FC = () => {
                     </Fade>
                 )}
             />
+
+            {/* Table of Contents Drawer */}
+            <Drawer
+                anchor="right"
+                open={tocOpen}
+                onClose={() => setTocOpen(false)}
+                PaperProps={{
+                    sx: {
+                        width: '85%',
+                        maxWidth: 320,
+                        bgcolor: theme.bg,
+                        color: theme.fg,
+                    },
+                }}
+            >
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.fg}22` }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        Table of Contents
+                    </Typography>
+                </Box>
+                <List sx={{ pt: 0 }}>
+                    {content.metadata.toc && content.metadata.toc.length > 0 ? (
+                        content.metadata.toc.map((chapter: any, idx: number) => (
+                            <ListItemButton
+                                key={idx}
+                                onClick={() => handleChapterClick(chapter.chapterIndex)}
+                                selected={chapter.chapterIndex === (savedProgress?.chapterIndex ?? 0)}
+                                sx={{
+                                    borderBottom: `1px solid ${theme.fg}11`,
+                                    '&.Mui-selected': { bgcolor: `${theme.fg}22` },
+                                    '&:hover': { bgcolor: `${theme.fg}11` },
+                                }}
+                            >
+                                <ListItemText
+                                    primary={chapter.label}
+                                    primaryTypographyProps={{
+                                        fontSize: '0.9rem',
+                                        color: theme.fg,
+                                        noWrap: true,
+                                    }}
+                                />
+                            </ListItemButton>
+                        ))
+                    ) : (
+                        // Fallback if no TOC found in metadata
+                        content.chapters.map((_, idx) => (
+                            <ListItemButton
+                                key={idx}
+                                onClick={() => handleChapterClick(idx)}
+                                selected={idx === (savedProgress?.chapterIndex ?? 0)}
+                                sx={{
+                                    borderBottom: `1px solid ${theme.fg}11`,
+                                    '&.Mui-selected': { bgcolor: `${theme.fg}22` },
+                                }}
+                            >
+                                <ListItemText
+                                    primary={`Chapter ${idx + 1}`}
+                                    primaryTypographyProps={{ color: theme.fg }}
+                                />
+                            </ListItemButton>
+                        ))
+                    )}
+                </List>
+            </Drawer>
 
             <ReaderControls
                 open={settingsOpen}

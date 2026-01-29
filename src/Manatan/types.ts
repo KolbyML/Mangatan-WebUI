@@ -65,6 +65,7 @@ export interface Settings {
     lnTextAlign: 'left' | 'center' | 'justify';
     lnLetterSpacing: number;
     lnParagraphSpacing: number;
+    lnDisableAnimations: boolean;
     // Dropdown setting for grouping behavior
     resultGroupingMode: 'grouped' | 'flat'; 
 
@@ -204,6 +205,7 @@ export const DEFAULT_SETTINGS: Settings = {
     lnTextAlign: 'justify',
     lnLetterSpacing: 0,
     lnParagraphSpacing: 1.5,
+    lnDisableAnimations: true,
 };
 
 export const COLOR_THEMES: Record<ColorTheme, { accent: string; background: string }> = {

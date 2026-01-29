@@ -5,6 +5,11 @@
     right: 0;
     bottom: 0;
     overflow: hidden;
+
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 .continuous-reader-container {
@@ -275,4 +280,36 @@
 .continuous-content.furigana-hidden rt {
     visibility: hidden;
     font-size: 0;
+}
+
+/* Drop caps / Decorative initial letters */
+.paged-content .drop-cap,
+.paged-content img.initial {
+    display: inline-block;
+    float: left;
+    margin: 0 0.1em 0 0;
+    max-height: 3em;
+    width: auto;
+    line-height: 1;
+}
+
+/* Emoji and small inline icons */
+.paged-content .emoji,
+.paged-content img[class*="icon"],
+.paged-content img[class*="emoji"] {
+    display: inline;
+    height: 1em;
+    width: auto;
+    margin: 0;
+    vertical-align: -0.1em;
+    break-inside: auto;
+}
+
+/* Ruby annotations with images (rare but exists) */
+.paged-content ruby img {
+    display: inline;
+    height: 0.5em;
+    width: auto;
+    margin: 0;
+    vertical-align: baseline;
 }

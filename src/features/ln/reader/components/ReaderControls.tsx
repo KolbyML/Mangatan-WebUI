@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Drawer, Box, Typography, Slider, Select, MenuItem,
     FormControl, InputLabel, IconButton, Divider, Switch,
     FormControlLabel, ToggleButtonGroup, ToggleButton,
-    SelectChangeEvent, Button, InputAdornment,
+    SelectChangeEvent, Button, InputAdornment, TextField,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -12,7 +12,6 @@ import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
 import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
 import FormatAlignJustifyIcon from '@mui/icons-material/FormatAlignJustify';
 import { Settings } from '@/Manatan/types';
-import { TextField } from '@mui/material';
 
 const THEMES = {
     light: { name: 'Light', bg: '#FFFFFF', fg: '#1a1a1a', preview: '#FFFFFF' },
@@ -27,29 +26,28 @@ const UNIVERSAL_FALLBACK_STACK =
     'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", serif';
 
 const FONT_PRESETS = [
-    { label: 'System (Default)', value: UNIVERSAL_FALLBACK_STACK },
-    { label: 'Serif ', value: 'Georgia, "Times New Roman", Times, serif' },
-    { label: 'Sans ', value: 'Arial, Helvetica, sans-serif' },
-    { label: 'Noto Serif JP', value: '"Noto Serif JP", serif' },
-    { label: 'Noto Sans JP', value: '"Noto Sans JP", sans-serif' },
+    { label: 'Serif', value: '"Noto Serif JP", "Noto Serif KR", "Noto Serif SC", "Noto Serif TC", serif' },
+    { label: 'Shippori Mincho', value: '"Shippori Mincho", serif' },
+    { label: 'Klee One', value: '"Klee One", serif' },
+    { label: 'Klee One SemiBold', value: '"Klee One", serif' },
+    { label: 'Sans-Serif', value: '"Noto Sans JP", "Noto Sans KR", "Noto Sans SC", "Noto Sans TC", sans-serif' },
+    { label: 'Yu Mincho', value: '"Yu Mincho", "YuMincho", serif' },
+    { label: 'Yu Gothic', value: '"Yu Gothic", "YuGothic", sans-serif' },
+    { label: 'System', value: UNIVERSAL_FALLBACK_STACK },
 ];
+
 function getPrimaryFontName(fontFamily: string): string {
     const first = (fontFamily || '').split(',')[0]?.trim() ?? '';
-    return first.replace(/^["']|["']$/g, ''); // strip quotes
+    return first.replace(/^["']|["']$/g, '');
 }
 
 function buildFontFamilyFromCustomName(name: string): string {
     const raw = (name || '').trim();
-
     if (!raw) return UNIVERSAL_FALLBACK_STACK;
-
     const safe = raw.replace(/,/g, '').trim();
-
     if (!safe) return UNIVERSAL_FALLBACK_STACK;
-
     const needsQuotes = /\s/.test(safe);
     const font = needsQuotes ? `"${safe.replace(/"/g, '')}"` : safe;
-
     return `${font}, ${UNIVERSAL_FALLBACK_STACK}`;
 }
 
@@ -57,6 +55,7 @@ function findMatchingPreset(value: string): string | null {
     const match = FONT_PRESETS.find(p => p.value === value);
     return match ? match.value : null;
 }
+
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -99,6 +98,22 @@ const getSelectStyles = (theme: { bg: string; fg: string }) => ({
     '& .MuiFormHelperText-root': { color: `${theme.fg}aa` },
 });
 
+const getInputStyles = (theme: { bg: string; fg: string }) => ({
+    width: '100px',
+    '& input': {
+        textAlign: 'center',
+        padding: '6px 8px',
+        fontSize: '0.875rem',
+        color: theme.fg,
+        fontWeight: 600,
+    },
+    '& .MuiOutlinedInput-root': {
+        '& fieldset': { borderColor: `${theme.fg}44` },
+        '&:hover fieldset': { borderColor: `${theme.fg}66` },
+        '&.Mui-focused fieldset': { borderColor: theme.fg },
+    },
+});
+
 export const ReaderControls: React.FC<Props> = ({
     open,
     onClose,
@@ -109,6 +124,100 @@ export const ReaderControls: React.FC<Props> = ({
 }) => {
     const menuProps = getMenuProps(theme);
     const selectStyles = getSelectStyles(theme);
+
+    // Local state for manual inputs
+    const [fontSizeInput, setFontSizeInput] = useState(settings.lnFontSize.toString());
+    const [lineHeightInput, setLineHeightInput] = useState(settings.lnLineHeight.toFixed(1));
+    const [letterSpacingInput, setLetterSpacingInput] = useState(settings.lnLetterSpacing.toString());
+    const [pageMarginInput, setPageMarginInput] = useState(settings.lnPageMargin.toString());
+
+    // Sync local state when settings change
+    React.useEffect(() => {
+        setFontSizeInput(settings.lnFontSize.toString());
+        setLineHeightInput(settings.lnLineHeight.toFixed(1));
+        setLetterSpacingInput(settings.lnLetterSpacing.toString());
+        setPageMarginInput(settings.lnPageMargin.toString());
+    }, [settings.lnFontSize, settings.lnLineHeight, settings.lnLetterSpacing, settings.lnPageMargin]);
+
+    const handleFontSizeChange = (value: string) => {
+        setFontSizeInput(value);
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num >= 12 && num <= 50) {
+            onUpdateSettings('lnFontSize', num);
+        }
+    };
+
+    const handleFontSizeBlur = () => {
+        const num = parseInt(fontSizeInput, 10);
+        if (isNaN(num) || num < 12) {
+            setFontSizeInput('12');
+            onUpdateSettings('lnFontSize', 12);
+        } else if (num > 50) {
+            setFontSizeInput('50');
+            onUpdateSettings('lnFontSize', 50);
+        }
+    };
+
+    const handleLineHeightChange = (value: string) => {
+        setLineHeightInput(value);
+        const num = parseFloat(value);
+        if (!isNaN(num) && num >= 1.2 && num <= 2.5) {
+            onUpdateSettings('lnLineHeight', num);
+        }
+    };
+
+    const handleLineHeightBlur = () => {
+        const num = parseFloat(lineHeightInput);
+        if (isNaN(num) || num < 1.2) {
+            setLineHeightInput('1.2');
+            onUpdateSettings('lnLineHeight', 1.2);
+        } else if (num > 2.5) {
+            setLineHeightInput('2.5');
+            onUpdateSettings('lnLineHeight', 2.5);
+        } else {
+            setLineHeightInput(num.toFixed(1));
+        }
+    };
+
+    const handleLetterSpacingChange = (value: string) => {
+        setLetterSpacingInput(value);
+        const num = parseFloat(value);
+        if (!isNaN(num) && num >= -2 && num <= 5) {
+            onUpdateSettings('lnLetterSpacing', num);
+        }
+    };
+
+    const handleLetterSpacingBlur = () => {
+        const num = parseFloat(letterSpacingInput);
+        if (isNaN(num) || num < -2) {
+            setLetterSpacingInput('-2');
+            onUpdateSettings('lnLetterSpacing', -2);
+        } else if (num > 5) {
+            setLetterSpacingInput('5');
+            onUpdateSettings('lnLetterSpacing', 5);
+        } else {
+            setLetterSpacingInput(num.toString());
+        }
+    };
+
+    const handlePageMarginChange = (value: string) => {
+        setPageMarginInput(value);
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num >= 0 && num <= 80) {
+            onUpdateSettings('lnPageMargin', num);
+        }
+    };
+
+    const handlePageMarginBlur = () => {
+        const num = parseInt(pageMarginInput, 10);
+        if (isNaN(num) || num < 0) {
+            setPageMarginInput('0');
+            onUpdateSettings('lnPageMargin', 0);
+        } else if (num > 80) {
+            setPageMarginInput('80');
+            onUpdateSettings('lnPageMargin', 80);
+        }
+    };
 
     return (
         <Drawer
@@ -198,19 +307,15 @@ export const ReaderControls: React.FC<Props> = ({
                                         <InputLabel sx={{ color: theme.fg, '&.Mui-focused': { color: theme.fg } }}>
                                             Font Family
                                         </InputLabel>
-
                                         <Select
                                             value={selectValue}
                                             label="Font Family"
                                             onChange={(e: SelectChangeEvent) => {
                                                 const v = e.target.value;
-
                                                 if (v === CUSTOM_FONT_VALUE) {
-                                                    // Switch to custom mode; keep current primary name
                                                     const primary = getPrimaryFontName(settings.lnFontFamily);
                                                     onUpdateSettings('lnFontFamily', buildFontFamilyFromCustomName(primary));
                                                 } else {
-                                                    // Preset selected
                                                     onUpdateSettings('lnFontFamily', v);
                                                 }
                                             }}
@@ -226,7 +331,6 @@ export const ReaderControls: React.FC<Props> = ({
                                         </Select>
                                     </FormControl>
 
-                                    {/* Show text field only in custom mode */}
                                     {selectValue === CUSTOM_FONT_VALUE && (
                                         <TextField
                                             size="small"
@@ -262,14 +366,25 @@ export const ReaderControls: React.FC<Props> = ({
 
                     {/* Font Size */}
                     <Box sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>Font Size</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnFontSize}px</Typography>
+                            <TextField
+                                size="small"
+                                value={fontSizeInput}
+                                onChange={(e) => handleFontSizeChange(e.target.value)}
+                                onBlur={handleFontSizeBlur}
+                                type="number"
+                                inputProps={{ min: 12, max: 50, step: 1 }}
+                                sx={getInputStyles(theme)}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end" sx={{ color: theme.fg }}>px</InputAdornment>
+                                }}
+                            />
                         </Box>
                         <Slider
                             value={settings.lnFontSize}
                             min={12}
-                            max={32}
+                            max={50}
                             step={1}
                             onChange={(_, v) => onUpdateSettings('lnFontSize', v)}
                             sx={{ color: theme.fg }}
@@ -278,9 +393,17 @@ export const ReaderControls: React.FC<Props> = ({
 
                     {/* Line Height */}
                     <Box sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>Line Height</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnLineHeight.toFixed(1)}</Typography>
+                            <TextField
+                                size="small"
+                                value={lineHeightInput}
+                                onChange={(e) => handleLineHeightChange(e.target.value)}
+                                onBlur={handleLineHeightBlur}
+                                type="number"
+                                inputProps={{ min: 1.2, max: 2.5, step: 0.1 }}
+                                sx={getInputStyles(theme)}
+                            />
                         </Box>
                         <Slider
                             value={settings.lnLineHeight}
@@ -294,9 +417,20 @@ export const ReaderControls: React.FC<Props> = ({
 
                     {/* Letter Spacing */}
                     <Box sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>Letter Spacing</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnLetterSpacing}px</Typography>
+                            <TextField
+                                size="small"
+                                value={letterSpacingInput}
+                                onChange={(e) => handleLetterSpacingChange(e.target.value)}
+                                onBlur={handleLetterSpacingBlur}
+                                type="number"
+                                inputProps={{ min: -2, max: 5, step: 0.5 }}
+                                sx={getInputStyles(theme)}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end" sx={{ color: theme.fg }}>px</InputAdornment>
+                                }}
+                            />
                         </Box>
                         <Slider
                             value={settings.lnLetterSpacing}
@@ -379,9 +513,20 @@ export const ReaderControls: React.FC<Props> = ({
 
                     {/* Page Margin */}
                     <Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>Page Margin</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{settings.lnPageMargin}px</Typography>
+                            <TextField
+                                size="small"
+                                value={pageMarginInput}
+                                onChange={(e) => handlePageMarginChange(e.target.value)}
+                                onBlur={handlePageMarginBlur}
+                                type="number"
+                                inputProps={{ min: 0, max: 80, step: 4 }}
+                                sx={getInputStyles(theme)}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end" sx={{ color: theme.fg }}>px</InputAdornment>
+                                }}
+                            />
                         </Box>
                         <Slider
                             value={settings.lnPageMargin}
@@ -401,7 +546,27 @@ export const ReaderControls: React.FC<Props> = ({
                     <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, opacity: 0.8 }}>
                         Features
                     </Typography>
-
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={!!settings.lnDisableAnimations}
+                                onChange={(e) => onUpdateSettings('lnDisableAnimations', e.target.checked)}
+                                sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: theme.fg },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: theme.fg },
+                                }}
+                            />
+                        }
+                        label={
+                            <Box>
+                                <Typography variant="body2">Disable Animations</Typography>
+                                <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                                    Instant page turns
+                                </Typography>
+                            </Box>
+                        }
+                        sx={{ mb: 1.5, width: '100%' }}
+                    />
                     <FormControlLabel
                         control={
                             <Switch
@@ -466,4 +631,3 @@ export const ReaderControls: React.FC<Props> = ({
         </Drawer>
     );
 };
-

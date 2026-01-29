@@ -204,11 +204,14 @@ export function useReaderCore({
     );
 
 
+
+
     const handleContentClick = useCallback(
         async (e: React.MouseEvent) => {
             if (isDraggingRef.current) return;
 
             const target = e.target as HTMLElement;
+
             if (
                 target.closest(
                     'a, button, img, ruby rt, .nav-btn, .reader-progress, .reader-slider-wrap'
@@ -217,14 +220,59 @@ export function useReaderCore({
                 return;
             }
 
-            const didLookup = await tryLookup(e);
-            if (!didLookup) {
+            const isNearText = (() => {
+                const range = document.caretRangeFromPoint?.(e.clientX, e.clientY);
+                if (!range) return false;
+
+                if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                    const text = range.startContainer.textContent || '';
+                    if (!text.trim()) return false;
+
+                    const offset = range.startOffset;
+
+                    const char = text[offset];
+                    if (!char || /\s/.test(char)) {
+                        const hasNearbyChar =
+                            (offset > 0 && text[offset - 1] && !/\s/.test(text[offset - 1])) ||
+                            (offset < text.length && text[offset + 1] && !/\s/.test(text[offset + 1]));
+
+                        if (!hasNearbyChar) return false;
+                    }
+
+                    try {
+                        const charRange = document.createRange();
+                        const checkOffset = offset >= text.length ? Math.max(0, text.length - 1) : offset;
+                        charRange.setStart(range.startContainer, checkOffset);
+                        charRange.setEnd(range.startContainer, checkOffset + 1);
+
+                        const rect = charRange.getBoundingClientRect();
+                        const marginX = 8;
+                        const marginY = 8;
+
+                        const isInBounds = (
+                            e.clientX >= rect.left - marginX &&
+                            e.clientX <= rect.right + marginX &&
+                            e.clientY >= rect.top - marginY &&
+                            e.clientY <= rect.bottom + marginY
+                        );
+
+                        return isInBounds;
+                    } catch (err) {
+                        return false;
+                    }
+                }
+
+                return false;
+            })();
+
+            if (isNearText) {
+                await tryLookup(e);
+            } else {
                 onToggleUI?.();
             }
         },
         [tryLookup, onToggleUI]
     );
-
     const isDragging = useCallback(() => isDraggingRef.current, []);
 
 

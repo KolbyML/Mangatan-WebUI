@@ -6,26 +6,36 @@
     position: fixed;
     inset: 0;
     overflow: hidden;
+
+    /* Safe area support for notches */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 /* =====================================================
-   SCROLL CONTAINER
+   VIEWPORT CONTAINER
    ===================================================== */
 
-.paged-scroll {
+.paged-viewport {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    transition: opacity 0.1s ease-out;
-
+    /* Viewport clips the content - no scrolling */
 }
 
 /* =====================================================
-   CONTENT - CSS COLUMNS
+   CONTENT
    ===================================================== */
 
 .paged-content {
     /* Column properties set via inline styles */
+
+    /* Performance optimization for transforms */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 
     /* Prevent breaking inside paragraphs */
     orphans: 2;
@@ -112,6 +122,10 @@
     margin: 0.5em auto;
     object-fit: contain;
     break-inside: avoid;
+
+    /* Prevent image transforms from looking blurry */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 /* Ensure SVG images inside SVGs scale correctly */
@@ -162,6 +176,8 @@
     font-size: 22px;
     cursor: pointer;
     transition: background 0.15s, transform 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .nav-btn:hover:not(:disabled) {
@@ -179,26 +195,26 @@
 
 /* Horizontal mode - left/right */
 .nav-btn.horizontal.prev {
-    left: 12px;
+    left: calc(12px + env(safe-area-inset-left));
     top: 50%;
     transform: translateY(-50%);
 }
 
 .nav-btn.horizontal.next {
-    right: 12px;
+    right: calc(12px + env(safe-area-inset-right));
     top: 50%;
     transform: translateY(-50%);
 }
 
-/* Vertical mode - also left/right but swapped for RTL feel */
+/* Vertical mode */
 .nav-btn.vertical.prev {
-    right: 12px;
+    right: calc(12px + env(safe-area-inset-right));
     top: 50%;
     transform: translateY(-50%);
 }
 
 .nav-btn.vertical.next {
-    left: 12px;
+    left: calc(12px + env(safe-area-inset-left));
     top: 50%;
     transform: translateY(-50%);
 }
@@ -209,7 +225,7 @@
 
 .paged-progress {
     position: fixed;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -221,6 +237,8 @@
     font-size: 12px;
     font-family: system-ui, sans-serif;
     backdrop-filter: blur(10px);
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .progress-row {
@@ -263,7 +281,7 @@
 
 .paged-slider-wrap {
     position: fixed;
-    bottom: 58px;
+    bottom: calc(58px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     width: 50%;
@@ -271,6 +289,8 @@
     padding: 10px 16px;
     border-radius: 14px;
     backdrop-filter: blur(10px);
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .paged-slider {
@@ -312,6 +332,7 @@
     align-items: center;
     justify-content: center;
     z-index: 200;
+    pointer-events: none;
 }
 
 .loading-spinner {
@@ -373,6 +394,9 @@
    ===================================================== */
 
 @media (prefers-reduced-motion: reduce) {
+    .paged-content {
+        transition: none !important;
+    }
 
     .paged-controls,
     .progress-fill {
@@ -445,4 +469,47 @@
 .paged-content.furigana-hidden rt {
     visibility: hidden;
     font-size: 0;
+}
+
+/* =====================================================
+   SCROLL CONTAINER (Legacy - kept for compatibility)
+   ===================================================== */
+
+.paged-scroll {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    transition: opacity 0.1s ease-out;
+}
+
+/* Drop caps / Decorative initial letters */
+.paged-content .drop-cap,
+.paged-content img.initial {
+    display: inline-block;
+    float: left;
+    margin: 0 0.1em 0 0;
+    max-height: 3em;
+    width: auto;
+    line-height: 1;
+}
+
+/* Emoji and small inline icons */
+.paged-content .emoji,
+.paged-content img[class*="icon"],
+.paged-content img[class*="emoji"] {
+    display: inline;
+    height: 1em;
+    width: auto;
+    margin: 0;
+    vertical-align: -0.1em;
+    break-inside: auto;
+}
+
+/* Ruby annotations with images (rare but exists) */
+.paged-content ruby img {
+    display: inline;
+    height: 0.5em;
+    width: auto;
+    margin: 0;
+    vertical-align: baseline;
 }

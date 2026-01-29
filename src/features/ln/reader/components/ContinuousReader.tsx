@@ -206,15 +206,16 @@ export const ContinuousReader: React.FC<ContinuousReaderProps> = ({
             if (!container) return;
 
             const amount = 200;
+            const behavior = settings.lnDisableAnimations ? 'auto' : 'smooth';
 
             if (isVertical) {
                 const delta = forward ? (isRTL ? -amount : amount) : isRTL ? amount : -amount;
-                container.scrollBy({ left: delta, behavior: 'smooth' });
+                container.scrollBy({ left: delta, behavior });
             } else {
-                container.scrollBy({ top: forward ? amount : -amount, behavior: 'smooth' });
+                container.scrollBy({ top: forward ? amount : -amount, behavior });
             }
         },
-        [isVertical, isRTL]
+        [isVertical, isRTL, settings.lnDisableAnimations]
     );
 
     const containerStyles = buildContainerStyles(settings, isVertical, isRTL);

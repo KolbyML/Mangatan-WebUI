@@ -22,6 +22,7 @@ interface VirtualReaderProps {
         totalProgress?: number;
     };
     renderHeader?: (showUI: boolean, toggleUI: () => void) => ReactNode;
+    onOpenToc?: () => void;
 }
 
 interface SharedPosition {
@@ -42,6 +43,7 @@ export const VirtualReader: React.FC<VirtualReaderProps> = ({
     initialPage = 0,
     initialProgress: externalInitialProgress,
     renderHeader,
+    onOpenToc,
 }) => {
     const { showUI, toggleUI } = useUIVisibility({
         autoHideDelay: 5000,
@@ -205,6 +207,8 @@ export const VirtualReader: React.FC<VirtualReaderProps> = ({
         initialProgress: activeProgress,
         onPositionUpdate: handlePositionUpdate,
         onRegisterSave: handleRegisterSave,
+        onOpenToc: onOpenToc,
+
     };
 
     return (

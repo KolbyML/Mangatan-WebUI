@@ -24,7 +24,11 @@ type ProgressCallback = (progress: ParseProgress) => void;
  * Character count for Japanese text
  */
 const NOISE_REGEX = /[^0-9A-Z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu;
-
+export interface TocItem {
+    label: string;
+    href: string;
+    chapterIndex: number;
+}
 function getCharacterCount(html: string): number {
     if (!html) return 0;
     const text = html.replace(/<[^>]*>/g, '');
@@ -123,7 +127,95 @@ export async function parseEpub(
         if (spineIds.length === 0) {
             return { success: false, error: 'No readable content in spine' };
         }
+        report('init', 5, 'Extracting Table of Contents...');
 
+        const tocItems: TocItem[] = [];
+
+        const ncxItem = opfDoc.querySelector('manifest > item[media-type="application/x-dtbncx+xml"]');
+
+        if (ncxItem) {
+            const ncxHref = ncxItem.getAttribute('href');
+            if (ncxHref) {
+                const ncxPath = resolvePath(opfPath, ncxHref);
+                const ncxContent = await content.file(ncxPath)?.async('string');
+                if (ncxContent) {
+                    const ncxDoc = new DOMParser().parseFromString(ncxContent, 'application/xml');
+
+                    const navPoints = ncxDoc.querySelectorAll('navPoint');
+
+                    navPoints.forEach((point) => {
+                        const label =
+                            point.querySelector('navLabel > text')?.textContent?.trim() ||
+                            point.querySelector('text')?.textContent?.trim() ||
+                            point.querySelector('navLabel')?.textContent?.trim() ||
+                            'Untitled';
+
+                        const src =
+                            point.querySelector('content')?.getAttribute('src') ||
+                            point.getAttribute('src') ||
+                            '';
+
+                        const cleanSrc = src.split('#')[0];
+
+                        if (!cleanSrc) return;
+
+                        let chapterIndex = -1;
+
+                        const manifestEntry = Object.entries(manifest).find(([_, val]) => {
+                            const normalizedManifest = val.href.split('#')[0];
+                            const normalizedClean = cleanSrc.split('#')[0];
+
+                            return normalizedManifest === normalizedClean ||
+                                normalizedManifest.endsWith(normalizedClean) ||
+                                normalizedClean.endsWith(normalizedManifest);
+                        });
+
+                        if (manifestEntry) {
+                            const id = manifestEntry[0];
+                            chapterIndex = spineIds.indexOf(id);
+                        }
+
+                        if (chapterIndex !== -1) {
+                            tocItems.push({ label, href: src, chapterIndex });
+                        }
+                    });
+                }
+            }
+        }
+
+        if (tocItems.length === 0) {
+            const navItem = opfDoc.querySelector('manifest > item[properties*="nav"]');
+            if (navItem) {
+                const navHref = navItem.getAttribute('href');
+                if (navHref) {
+                    const navPath = resolvePath(opfPath, navHref);
+                    const navContent = await content.file(navPath)?.async('string');
+                    if (navContent) {
+                        const navDoc = new DOMParser().parseFromString(navContent, 'text/html');
+                        const navLinks = navDoc.querySelectorAll('nav[epub\\:type="toc"] a, nav[*|type="toc"] a, nav#toc a');
+
+                        navLinks.forEach((link) => {
+                            const label = link.textContent?.trim() || 'Untitled';
+                            const href = link.getAttribute('href') || '';
+                            const cleanSrc = href.split('#')[0];
+
+                            if (!cleanSrc) return;
+
+                            const manifestEntry = Object.entries(manifest).find(([_, val]) =>
+                                val.href.split('#')[0] === cleanSrc
+                            );
+
+                            if (manifestEntry) {
+                                const chapterIndex = spineIds.indexOf(manifestEntry[0]);
+                                if (chapterIndex !== -1) {
+                                    tocItems.push({ label, href, chapterIndex });
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
         report('images', 15, 'Processing images...');
 
         // --- Extract Images as Blobs ---
@@ -275,6 +367,7 @@ export async function parseEpub(
             isProcessing: false,
             stats,
             chapterCount: chapters.length,
+            toc: tocItems,
         };
 
         const parsedBook: LNParsedBook = {
