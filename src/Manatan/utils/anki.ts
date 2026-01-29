@@ -6,29 +6,38 @@ async function ankiConnect(
     params: Record<string, any>,
     url: string,
 ) {
-    const execute = async () => {
-        const res = await fetch(url, {
-            method: "POST",
-            body: JSON.stringify({ action, params, version: 6 }),
-        });
-        const json = await res.json();
-        if (json.error) throw new Error(json.error);
-        return json.result;
+    const timeoutMs = 20000;
+    const fetchWithTimeout = async (body: Record<string, any>) => {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            });
+            const json = await res.json();
+            if (json.error) throw new Error(json.error);
+            return json.result;
+        } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                throw new Error('AnkiConnect request timed out. Make sure AnkiDroid is running and permission is granted.');
+            }
+            throw error;
+        } finally {
+            window.clearTimeout(timeout);
+        }
     };
+
+    const execute = async () => fetchWithTimeout({ action, params, version: 6 });
 
     try {
         return await execute();
     } catch (e: any) {
         // If fetch fails, it is likely a CORS block. Attempt handshake.
         try {
-            const permRes = await fetch(url, {
-                method: "POST",
-                body: JSON.stringify({ action: "requestPermission", version: 6 }),
-            });
-            const permJson = await permRes.json();
-
-            // If user clicked 'Yes' in the Anki popup, retry the original request
-            if (permJson.result && permJson.result.permission === 'granted') {
+            const permResult = await fetchWithTimeout({ action: "requestPermission", version: 6 });
+            if (permResult && permResult.permission === 'granted') {
                 return await execute();
             }
         } catch (handshakeError) {
@@ -100,7 +109,8 @@ export async function addNote(
     modelName: string, 
     fields: Record<string, string>, 
     tags: string[] = [],
-    picture?: { url?: string; data?: string; filename: string; fields: string[] }
+    picture?: { url?: string; data?: string; filename: string; fields: string[] },
+    audio?: { url?: string; data?: string; filename: string; fields: string[] } | Array<{ url?: string; data?: string; filename: string; fields: string[] }>
 ) {
     const params: any = {
         note: {
@@ -117,6 +127,10 @@ export async function addNote(
 
     if (picture) {
         params.note.picture = [picture];
+    }
+
+    if (audio) {
+        params.note.audio = Array.isArray(audio) ? audio : [audio];
     }
 
     return await ankiConnect("addNote", params, url);

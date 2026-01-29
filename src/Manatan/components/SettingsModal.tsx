@@ -15,11 +15,11 @@ const checkboxInputStyle: React.CSSProperties = {
 };
 
 const sectionBoxStyle: React.CSSProperties = {
-    backgroundColor: 'rgba(0, 0, 0, 0.2)', 
-    padding: '15px',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 'var(--settings-section-padding, 15px)',
     borderRadius: '8px',
     border: '1px solid rgba(255, 255, 255, 0.1)',
-    marginBottom: '20px'
+    marginBottom: 'var(--settings-section-margin, 20px)',
 };
 
 const statusDotStyle = (connected: boolean): React.CSSProperties => ({
@@ -32,7 +32,17 @@ const statusDotStyle = (connected: boolean): React.CSSProperties => ({
     boxShadow: connected ? '0 0 5px #2ecc71' : 'none'
 });
 
-const MAPPING_OPTIONS = ['None', 'Sentence', 'Image', 'Furigana', 'Reading', 'Target Word', 'Definition', 'Frequency'];
+const MAPPING_OPTIONS = [
+    'None',
+    'Sentence',
+    'Sentence Audio',
+    'Image',
+    'Furigana',
+    'Reading',
+    'Target Word',
+    'Definition',
+    'Frequency',
+];
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { settings, setSettings, showConfirm, showAlert, showProgress, closeDialog, showDialog, openSetup } = useOCR();
     const [localSettings, setLocalSettings] = useState(settings);
@@ -300,11 +310,9 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
     return (
         <div className="ocr-modal-overlay" onClick={onClose}>
-            <div className="ocr-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="ocr-modal-header">
-                    <h2>Settings</h2>
-                </div>
+            <div className="ocr-modal settings-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="ocr-modal-content">
+                    <h2>Settings</h2>
                     <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".zip" onChange={handleFileChange} />
 
                     {/* --- UPDATE BANNER --- */}
@@ -639,6 +647,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                             <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
                                                                 Field where the screenshot image will be stored.
                                                             </div>
+
                                                         </div>
                                                     )}
                                                 </div>
@@ -730,6 +739,19 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             />
                             <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
                                 Higher values make subtitles bolder and easier to read.
+                            </div>
+                            <label htmlFor="tapZonePercent">Video Tap Zone (%)</label>
+                            <input
+                                id="tapZonePercent"
+                                type="number"
+                                step="1"
+                                min="10"
+                                max="60"
+                                value={localSettings.tapZonePercent}
+                                onChange={(e) => handleChange('tapZonePercent', parseInt(e.target.value, 10))}
+                            />
+                            <div style={{ gridColumn: '1 / -1', fontSize: '0.85em', color: '#aaa' }}>
+                                Controls the height of the top tap zone for play/pause.
                             </div>
                             <label htmlFor="jimakuApiKey">Jimaku API Key</label>
                             <input

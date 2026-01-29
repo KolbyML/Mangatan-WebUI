@@ -29,6 +29,7 @@ export interface Settings {
     boundingBoxAdjustment: number;
     subtitleFontSize: number;
     subtitleFontWeight: number;
+    tapZonePercent: number;
     jimakuApiKey?: string;
     yomitanLanguage: YomitanLanguage;
     textOrientation: 'smart' | 'forceVertical' | 'forceHorizontal';
@@ -157,6 +158,7 @@ export const DEFAULT_SETTINGS: Settings = {
     boundingBoxAdjustment: 5,
     subtitleFontSize: 22,
     subtitleFontWeight: 600,
+    tapZonePercent: 30,
     jimakuApiKey: '',
     yomitanLanguage: 'japanese',
     textOrientation: 'smart',

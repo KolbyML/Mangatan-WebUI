@@ -23,6 +23,15 @@ export const GET_ANIME_SOURCES_LIST = gql`
                 isConfigurable
                 supportsLatest
                 baseUrl
+                meta {
+                    sourceId
+                    key
+                    value
+                }
+                extension {
+                    pkgName
+                    repo
+                }
             }
         }
     }

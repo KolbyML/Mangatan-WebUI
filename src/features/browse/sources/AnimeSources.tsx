@@ -18,59 +18,21 @@ import {
     createUpdateMetadataServerSettings,
     useMetadataServerSettings,
 } from '@/features/settings/services/ServerSettingsMetadata.ts';
-import { LanguageSelect } from '@/base/components/inputs/LanguageSelect.tsx';
 import { StyledGroupedVirtuoso } from '@/base/components/virtuoso/StyledGroupedVirtuoso.tsx';
 import { StyledGroupHeader } from '@/base/components/virtuoso/StyledGroupHeader.tsx';
 import { StyledGroupItemWrapper } from '@/base/components/virtuoso/StyledGroupItemWrapper.tsx';
 import { VirtuosoUtil } from '@/lib/virtuoso/Virtuoso.util.tsx';
-import { translateExtensionLanguage } from '@/features/extension/Extensions.utils.ts';
+import { isPinnedOrLastUsedSource, translateExtensionLanguage } from '@/features/extension/Extensions.utils.ts';
 import { useAppAction } from '@/features/navigation-bar/hooks/useAppAction.ts';
-import { languageSpecialSortComparator, toComparableLanguage, toUniqueLanguageCodes } from '@/base/utils/Languages.ts';
+import { DefaultLanguage } from '@/base/utils/Languages.ts';
 import { AnimeSourceCard, AnimeSourceInfo } from '@/features/browse/sources/components/AnimeSourceCard.tsx';
-
-type AnimeSourceResponse = AnimeSourceInfo[];
-
-const groupByLanguage = (sources: AnimeSourceInfo[]): [string, AnimeSourceInfo[]][] => {
-    if (!sources.length) {
-        return [];
-    }
-
-    const grouped = sources.reduce<Record<string, AnimeSourceInfo[]>>((acc, source) => {
-        const lang = source.lang || 'unknown';
-        if (!acc[lang]) {
-            acc[lang] = [];
-        }
-        acc[lang].push(source);
-        return acc;
-    }, {});
-
-    const groupedEntries = Object.entries(grouped)
-        .map(([lang, groupedSources]) => [lang, groupedSources ?? []] as [string, AnimeSourceInfo[]])
-        .filter(([, groupedSources]) => groupedSources.length > 0)
-        .toSorted(([a], [b]) => languageSpecialSortComparator(a, b));
-
-    if (!groupedEntries.length) {
-        return [['unknown', sources]];
-    }
-
-    return groupedEntries;
-};
-
-const filterSources = (
-    sources: AnimeSourceInfo[],
-    { showNsfw, languages }: { showNsfw: boolean; languages: string[] },
-): AnimeSourceInfo[] => {
-    const normalizedLanguages = toUniqueLanguageCodes(languages).map((lang) => toComparableLanguage(lang));
-
-    return sources
-        .filter((source) => showNsfw || !source.isNsfw)
-        .filter((source) => !languages.length || normalizedLanguages.includes(toComparableLanguage(source.lang)));
-};
+import { Sources as SourceService } from '@/features/source/services/Sources.ts';
+import { SourceLanguageSelect } from '@/features/source/components/SourceLanguageSelect.tsx';
 
 export function AnimeSources({ tabsMenuHeight }: { tabsMenuHeight: number }) {
     const { t } = useTranslation();
     const {
-        settings: { showNsfw, animeSourceLanguages },
+        settings: { showNsfw, animeSourceLanguages, lastUsedSourceId },
     } = useMetadataServerSettings();
     const updateMetadataServerSettings = createUpdateMetadataServerSettings<'animeSourceLanguages'>();
 
@@ -82,6 +44,7 @@ export function AnimeSources({ tabsMenuHeight }: { tabsMenuHeight: number }) {
         error,
         refetch,
     } = requestManager.useGetAnimeSourceList({ notifyOnNetworkStatusChange: true });
+    const { data: sourcesData } = requestManager.useGetSourceList();
 
     const refresh = useCallback(() => setRefreshToken((prev) => prev + 1), []);
 
@@ -89,57 +52,100 @@ export function AnimeSources({ tabsMenuHeight }: { tabsMenuHeight: number }) {
         refetch().catch(() => {});
     }, [refreshToken]);
 
-    const sources = useMemo(
-        () =>
-            ((data?.animeSources?.nodes ?? []) as AnimeSourceResponse)
-                .filter(Boolean)
-                .map((source) => ({
-                    ...source,
-                    lang: source.lang || 'unknown',
-                })),
-        [data?.animeSources?.nodes],
-    );
+    const localSource = useMemo(() => {
+        const source = sourcesData?.sources?.nodes?.find((item) => SourceService.isLocalSource(item));
+        if (!source) {
+            return null;
+        }
+
+        return {
+            id: source.id,
+            name: source.name,
+            displayName: source.displayName,
+            lang: source.lang || 'unknown',
+            iconUrl: source.iconUrl,
+            isNsfw: source.isNsfw,
+            isConfigurable: source.isConfigurable,
+            supportsLatest: source.supportsLatest,
+            baseUrl: null,
+            meta: source.meta ?? [],
+            extension: source.extension ?? { repo: null },
+        } satisfies AnimeSourceInfo;
+    }, [sourcesData?.sources?.nodes]);
+
+    const sources = useMemo(() => {
+        const animeSources = ((data?.animeSources?.nodes ?? []) as AnimeSourceInfo[])
+            .filter(Boolean)
+            .map((source) => ({
+                ...source,
+                extension: source.extension ?? { repo: null },
+                meta: source.meta ?? [],
+                lang: source.lang || 'unknown',
+            }));
+
+        if (!localSource || animeSources.some((source) => SourceService.isLocalSource(source))) {
+            return animeSources;
+        }
+
+        return [localSource, ...animeSources];
+    }, [data?.animeSources?.nodes, localSource]);
     const filteredSources = useMemo(
-        () => filterSources(sources, { showNsfw, languages: animeSourceLanguages }),
+        () =>
+            SourceService.filter(sources, {
+                showNsfw,
+                languages: animeSourceLanguages,
+                keepLocalSource: true,
+                enabled: true,
+            }),
         [sources, showNsfw, animeSourceLanguages],
     );
-    const groupedSources = useMemo(() => groupByLanguage(filteredSources), [filteredSources]);
+    const sourcesByLanguage = useMemo(() => {
+        const lastUsedSource = SourceService.getLastUsedSource(lastUsedSourceId, filteredSources);
+        const groupedByLanguageTuple = Object.entries(SourceService.groupByLanguage(filteredSources));
 
-    const groupCounts = useMemo(() => groupedSources.map((group) => group[1].length), [groupedSources]);
-    const visibleSources = useMemo(
-        () => groupedSources.map(([, sourcesOfLanguage]) => sourcesOfLanguage).flat(1),
-        [groupedSources],
+        if (lastUsedSource) {
+            return [[DefaultLanguage.LAST_USED_SOURCE, [lastUsedSource]], ...groupedByLanguageTuple];
+        }
+
+        return groupedByLanguageTuple;
+    }, [filteredSources, lastUsedSourceId]);
+
+    const sourceLanguagesList = useMemo(() => SourceService.getLanguages(sources ?? []), [sources]);
+    const areSourcesFromDifferentRepos = useMemo(
+        () => SourceService.areFromMultipleRepos(filteredSources),
+        [filteredSources],
     );
 
+    const visibleSources = useMemo(
+        () => sourcesByLanguage.map(([, sourcesOfLanguage]) => sourcesOfLanguage).flat(1),
+        [sourcesByLanguage],
+    );
+    const groupCounts = useMemo(() => sourcesByLanguage.map((sourceGroup) => sourceGroup[1].length), [sourcesByLanguage]);
     const computeItemKey = VirtuosoUtil.useCreateGroupedComputeItemKey(
         groupCounts,
-        useCallback((index) => groupedSources[index]?.[0] ?? 'unknown', [groupedSources]),
+        useCallback((index) => sourcesByLanguage[index][0], [sourcesByLanguage]),
         useCallback(
-            (index) => {
-                const source = visibleSources[index];
-                return source ? `${source.lang}_${source.id}` : `unknown_${index}`;
-            },
+            (index, groupIndex) => `${sourcesByLanguage[groupIndex][0]}_${visibleSources[index].id}`,
             [visibleSources],
         ),
     );
-
-    const sourceLanguagesList = useMemo(() => sources.map((source) => source.lang), [sources]);
     const appAction = useMemo(
         () => (
             <>
                 <IconButton onClick={refresh} color="inherit">
                     <RefreshIcon />
                 </IconButton>
-                <LanguageSelect
+                <SourceLanguageSelect
                     selectedLanguages={animeSourceLanguages}
                     setSelectedLanguages={(languages: string[]) =>
                         updateMetadataServerSettings('animeSourceLanguages', languages)
                     }
                     languages={sourceLanguagesList}
+                    sources={sources ?? []}
                 />
             </>
         ),
-        [refresh, animeSourceLanguages, sourceLanguagesList],
+        [refresh, animeSourceLanguages, sourceLanguagesList, sources],
     );
 
     useAppAction(appAction, [appAction]);
@@ -176,18 +182,23 @@ export function AnimeSources({ tabsMenuHeight }: { tabsMenuHeight: number }) {
             groupContent={(index) => (
                 <StyledGroupHeader isFirstItem={!index}>
                     <Typography variant="h5" component="h2">
-                        {translateExtensionLanguage(groupedSources[index]?.[0] ?? 'unknown')}
+                        {translateExtensionLanguage(sourcesByLanguage[index]?.[0] ?? 'unknown')}
                     </Typography>
                 </StyledGroupHeader>
             )}
-            itemContent={(index) => {
+            itemContent={(index, groupIndex) => {
+                const language = sourcesByLanguage[groupIndex][0];
                 const source = visibleSources[index];
                 if (!source) {
                     return null;
                 }
                 return (
                     <StyledGroupItemWrapper>
-                        <AnimeSourceCard source={source} />
+                        <AnimeSourceCard
+                            source={source}
+                            showSourceRepo={areSourcesFromDifferentRepos}
+                            showLanguage={isPinnedOrLastUsedSource(language)}
+                        />
                     </StyledGroupItemWrapper>
                 );
             }}

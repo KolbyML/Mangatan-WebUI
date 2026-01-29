@@ -105,6 +105,7 @@ export const SERVER_SETTINGS = gql`
 
         # local source
         localSourcePath
+        localAnimeSourcePath
 
         # Cloudflare bypass
         flareSolverrEnabled

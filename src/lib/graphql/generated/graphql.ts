@@ -1710,6 +1710,7 @@ export type PartialSettingsType = Settings & {
   /** @deprecated Moved to preference store. User is supposed to use a login/logout mutation, replace with MOVE TO PREFERENCES */
   koreaderSyncUsername?: Maybe<Scalars['String']['output']>;
   localSourcePath?: Maybe<Scalars['String']['output']>;
+  localAnimeSourcePath?: Maybe<Scalars['String']['output']>;
   maxLogFileSize?: Maybe<Scalars['String']['output']>;
   maxLogFiles?: Maybe<Scalars['Int']['output']>;
   maxLogFolderSize?: Maybe<Scalars['String']['output']>;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Contributors to the Suwayomi project
+ * Copyright (C) Contributors to the Manatan project
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -93,16 +93,26 @@ export const AnimeGridCard = ({
         onLibraryChange?.(nextState);
     };
 
+    const isSelecting = selected !== null && selected !== undefined;
+
     const longPressBind = useLongPress(
         useCallback(
-            (e: any, { context }: any) => {
+            (event: any, { context }: any) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (mode === 'source') {
+                    handleToggleLibrary();
+                    return;
+                }
+                if (isSelecting) {
+                    onSelect?.(anime.id, !selected, event.shiftKey);
+                    return;
+                }
                 (context as () => {})?.();
             },
-            [],
+            [mode, handleToggleLibrary, isSelecting, onSelect, anime.id, selected],
         ),
     );
-
-    const isSelecting = selected !== null;
 
     return (
         <PopupState variant="popover" popupId="anime-card-action-menu">
@@ -223,6 +233,11 @@ export const AnimeGridCard = ({
                                                                 minWidth: 'unset',
                                                                 paddingX: 0,
                                                                 paddingY: '2.5px',
+                                                                backgroundColor: 'primary.main',
+                                                                color: 'common.white',
+                                                                '&:hover': {
+                                                                    backgroundColor: 'primary.main',
+                                                                },
                                                                 visibility: popupState.isOpen ? 'visible' : 'hidden',
                                                                 pointerEvents: 'none',
                                                                 '@media not (pointer: fine)': {

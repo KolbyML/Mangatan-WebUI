@@ -28,7 +28,10 @@ import { ServerSettings as GqlServerSettings } from '@/features/settings/Setting
 import { getErrorMessage } from '@/lib/HelperFunctions.ts';
 import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
 
-type ExtensionsSettings = Pick<GqlServerSettings, 'maxSourcesInParallel' | 'localSourcePath' | 'extensionRepos'> & {
+type ExtensionsSettings = Pick<
+    GqlServerSettings,
+    'maxSourcesInParallel' | 'localSourcePath' | 'localAnimeSourcePath' | 'extensionRepos'
+> & {
     animeExtensionRepos: string[];
 };
 
@@ -170,6 +173,17 @@ export const BrowseSettings = () => {
                     serverSettings.localSourcePath.length ? serverSettings.localSourcePath : t('global.label.default')
                 }
                 handleChange={(path) => updateSetting('localSourcePath', path)}
+            />
+            <TextSetting
+                settingName={t('settings.server.local_anime_source.path.label.title')}
+                dialogDescription={t('settings.server.local_anime_source.path.label.description')}
+                value={serverSettings.localAnimeSourcePath}
+                settingDescription={
+                    serverSettings.localAnimeSourcePath.length
+                        ? serverSettings.localAnimeSourcePath
+                        : t('global.label.default')
+                }
+                handleChange={(path) => updateSetting('localAnimeSourcePath', path)}
             />
         </List>
     );

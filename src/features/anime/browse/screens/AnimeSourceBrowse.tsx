@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Contributors to the Suwayomi project
+ * Copyright (C) Contributors to the Manatan project
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
@@ -28,8 +28,10 @@ import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
 import { GridLayout } from '@/base/Base.types.ts';
 import { useLocalStorage } from '@/base/hooks/useStorage.tsx';
 import { AnimeListCard } from '@/features/anime/components/AnimeListCard.tsx';
+import { updateMetadataServerSettings } from '@/features/settings/services/ServerSettingsMetadata.ts';
+import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts';
 
-enum AnimeSourceContentType {
+export enum AnimeSourceContentType {
     POPULAR = 'POPULAR',
     LATEST = 'LATEST',
     SEARCH = 'SEARCH',
@@ -47,11 +49,17 @@ type AnimeSourceBrowseResult = {
 export const AnimeSourceBrowse = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const location = useLocation();
     const { sourceId } = useParams();
     const [searchParams] = useSearchParams();
     const query = searchParams.get('query') ?? '';
 
-    const [contentType, setContentType] = useState(AnimeSourceContentType.POPULAR);
+    const locationState = (location.state ?? {}) as {
+        contentType?: AnimeSourceContentType;
+    };
+    const initialContentType = locationState.contentType ?? AnimeSourceContentType.POPULAR;
+
+    const [contentType, setContentType] = useState(initialContentType);
     const [animeEntries, setAnimeEntries] = useState<AnimeSourceBrowseResult[]>([]);
     const [gridLayout] = useLocalStorage('source-grid-layout', GridLayout.Compact);
 
@@ -62,6 +70,10 @@ export const AnimeSourceBrowse = () => {
     } = requestManager.useGetAnimeSourceBrowse(sourceId ?? '-1', { notifyOnNetworkStatusChange: true });
     const [fetchSourceAnimes, { data, loading: listLoading, error: listError }] =
         requestManager.useGetSourceAnimes();
+
+    useEffect(() => {
+        setContentType(initialContentType);
+    }, [sourceId, initialContentType]);
 
     useEffect(() => {
         if (!sourceId) {
@@ -79,6 +91,22 @@ export const AnimeSourceBrowse = () => {
             },
         }).catch(() => {});
     }, [sourceId, contentType, query]);
+
+    useEffect(() => {
+        if (!query || contentType === AnimeSourceContentType.SEARCH) {
+            return;
+        }
+        setContentType(AnimeSourceContentType.SEARCH);
+    }, [query, contentType]);
+
+    useEffect(() => {
+        if (!sourceId) {
+            return;
+        }
+        updateMetadataServerSettings('lastUsedSourceId', sourceId).catch(
+            defaultPromiseErrorHandler('AnimeSourceBrowse::setLastUsedSourceId'),
+        );
+    }, [sourceId]);
 
     const source = sourceData?.animeSource;
     const animes = useMemo(() => data?.fetchSourceAnime?.animes ?? [], [data]);
@@ -196,6 +224,13 @@ export const AnimeSourceBrowse = () => {
                                     gridLayout={gridLayout}
                                     mode="source"
                                     inLibraryIndicator
+                                    onLibraryChange={(nextState) => {
+                                        setAnimeEntries((current) =>
+                                            current.map((entry) =>
+                                                entry.id === anime.id ? { ...entry, inLibrary: nextState } : entry,
+                                            ),
+                                        );
+                                    }}
                                 />
                             )}
                         </Grid>

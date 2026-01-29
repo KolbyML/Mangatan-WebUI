@@ -1,14 +1,14 @@
 /*
- * Copyright (C) Contributors to the Suwayomi project
+ * Copyright (C) Contributors to the Manatan project
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import Grid from '@mui/material/Grid';
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import IconButton from '@mui/material/IconButton';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -30,6 +30,9 @@ import { SearchParam } from '@/base/Base.types.ts';
 import { SelectableCollectionSelectMode } from '@/base/collection/components/SelectableCollectionSelectMode.tsx';
 import { useSelectableCollection } from '@/base/collection/hooks/useSelectableCollection.ts';
 import { CustomTooltip } from '@/base/components/CustomTooltip.tsx';
+import { useMetadataServerSettings } from '@/features/settings/services/ServerSettingsMetadata.ts';
+import { useResizeObserver } from '@/base/hooks/useResizeObserver.tsx';
+import { useNavBarContext } from '@/features/navigation-bar/NavbarContext.tsx';
 
 export const AnimeLibrary = () => {
     const { t } = useTranslation();
@@ -39,6 +42,14 @@ export const AnimeLibrary = () => {
     const [sort, setSort] = useLocalStorage('anime-library-sort', 'addedDesc');
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [isSelectModeActive, setIsSelectModeActive] = useState(false);
+    const { navBarWidth } = useNavBarContext();
+    const {
+        settings: { mangaGridItemWidth },
+    } = useMetadataServerSettings();
+    const gridWrapperRef = useRef<HTMLDivElement>(null);
+    const [dimensions, setDimensions] = useState(
+        gridWrapperRef.current?.offsetWidth ?? Math.max(0, document.documentElement.offsetWidth - navBarWidth),
+    );
 
     const filteredAnimes = useMemo(() => {
         const normalizedQuery = query?.trim().toLowerCase() ?? '';
@@ -81,6 +92,16 @@ export const AnimeLibrary = () => {
         },
         [handleSelection, selectedItemIds.length],
     );
+
+    useResizeObserver(
+        gridWrapperRef,
+        useCallback(() => {
+            const gridWidth = gridWrapperRef.current?.offsetWidth;
+            setDimensions(gridWidth ?? document.documentElement.offsetWidth - navBarWidth);
+        }, [navBarWidth]),
+    );
+
+    const gridColumns = Math.max(1, Math.ceil(dimensions / mangaGridItemWidth));
 
     useAppTitle('Anime');
     useAppAction(
@@ -139,7 +160,14 @@ export const AnimeLibrary = () => {
 
     return (
         <Stack sx={{ p: 2 }}>
-            <Grid container spacing={1}>
+            <Box
+                ref={gridWrapperRef}
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+                    gap: 1,
+                }}
+            >
                 {filteredAnimes.map(
                     (anime: {
                         id: number;
@@ -154,7 +182,7 @@ export const AnimeLibrary = () => {
                             : '';
 
                         return (
-                            <Grid key={anime.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+                            <Box key={anime.id}>
                                 <AnimeGridCard
                                     anime={{
                                         ...anime,
@@ -165,11 +193,11 @@ export const AnimeLibrary = () => {
                                     selected={isSelectModeActive ? selectedItemIds.includes(anime.id) : null}
                                     onSelect={handleSelect}
                                 />
-                            </Grid>
+                            </Box>
                         );
                 },
                 )}
-            </Grid>
+            </Box>
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
                 <MenuItem
                     selected={sort === 'addedDesc'}

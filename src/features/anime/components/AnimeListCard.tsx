@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Contributors to the Suwayomi project
+ * Copyright (C) Contributors to the Manatan project
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -60,27 +60,35 @@ export const AnimeListCard = ({
     const { t } = useTranslation();
     const preventMobileContextMenu = MediaQuery.usePreventMobileContextMenu();
     const optionButtonRef = useRef<HTMLButtonElement>(null);
-    const isSelecting = selected !== null;
+    const isSelecting = selected !== null && selected !== undefined;
 
     const handleClick = useCallback(
-        (event: React.MouseEvent | React.TouchEvent, openMenu?: () => void) => {
-            if (isSelecting) {
-                event.preventDefault();
-                onSelect?.(anime.id, !selected, event.shiftKey);
+        (event: React.MouseEvent | React.TouchEvent) => {
+            if (!isSelecting) {
                 return;
             }
-
-            openMenu?.();
+            event.preventDefault();
+            onSelect?.(anime.id, !selected, event.shiftKey);
         },
-        [mode, isSelecting, onSelect, selected, anime.id, onToggleLibrary],
+        [isSelecting, onSelect, selected, anime.id],
     );
 
     const longPressBind = useLongPress(
         useCallback(
             (event: any, { context }: any) => {
-                handleClick(event, context as () => {});
+                event.preventDefault();
+                event.stopPropagation();
+                if (mode === 'source') {
+                    onToggleLibrary();
+                    return;
+                }
+                if (isSelecting) {
+                    onSelect?.(anime.id, !selected, event.shiftKey);
+                    return;
+                }
+                (context as () => {})?.();
             },
-            [handleClick],
+            [mode, onToggleLibrary, isSelecting, onSelect, anime.id, selected],
         ),
     );
 
@@ -92,7 +100,7 @@ export const AnimeListCard = ({
                         <CardActionArea
                             component={RouterLink}
                             to={linkTo}
-                            onClick={(event) => handleClick(event, popupState.open)}
+                            onClick={handleClick}
                             {...longPressBind(() => popupState.open(optionButtonRef.current))}
                             onContextMenu={preventMobileContextMenu}
                             sx={{

@@ -1510,6 +1510,14 @@
           }
         }
       },
+      "local_anime_source": {
+        "path": {
+          "label": {
+            "description": "The path to the directory on the server where local anime files are saved in",
+            "title": "Local anime source location"
+          }
+        }
+      },
       "misc": {
         "log_files": {
           "file_cleanup": {

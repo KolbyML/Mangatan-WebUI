@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Contributors to the Suwayomi project
+ * Copyright (C) Contributors to the Manatan project
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,11 +15,14 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Slider from '@mui/material/Slider';
 import Menu from '@mui/material/Menu';
+import CircularProgress from '@mui/material/CircularProgress';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
+import SkipNextIcon from '@mui/icons-material/SkipNext';
+import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VideoSettingsIcon from '@mui/icons-material/OndemandVideo';
 import SubtitlesIcon from '@mui/icons-material/Subtitles';
 import SpeedIcon from '@mui/icons-material/Speed';
@@ -27,6 +30,11 @@ import CheckIcon from '@mui/icons-material/Check';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,12 +48,13 @@ import { DictionaryResult } from '@/Manatan/types.ts';
 import { StructuredContent } from '@/Manatan/components/YomitanPopup.tsx';
 import { makeToast } from '@/base/utils/Toast.ts';
 import { MediaQuery } from '@/base/utils/MediaQuery.tsx';
+import { addNote, findNotes, guiBrowse } from '@/Manatan/utils/anki.ts';
 
 type SubtitleTrack = {
     url: string;
     lang: string;
     label?: string;
-    source?: 'video' | 'jimaku';
+    source?: 'video' | 'jimaku' | 'local';
 };
 
 type VideoOption = {
@@ -59,6 +68,7 @@ type EpisodeOption = {
 };
 
 type SubtitleCue = {
+    id: string;
     start: number;
     end: number;
     text: string;
@@ -87,6 +97,96 @@ type Props = {
 };
 
 const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SUBTITLE_TIME_EPSILON = 0.05;
+const SUBTITLE_LATIN_WORD_REGEX = /[\p{L}\p{N}'’_-]/u;
+const SUBTITLE_CJK_REGEX = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
+const getSubtitleHighlightRange = (
+    text: string,
+    caretOffset: number,
+): { start: number; end: number } | null => {
+    if (!text.length) {
+        return null;
+    }
+
+    const length = text.length;
+    let index = Math.min(Math.max(caretOffset, 0), length - 1);
+    const isWordChar = (char: string) => SUBTITLE_LATIN_WORD_REGEX.test(char);
+    const isCjkChar = (char: string) => SUBTITLE_CJK_REGEX.test(char);
+
+    const pickNearestWordChar = () => {
+        let left = index - 1;
+        let right = index + 1;
+        while (left >= 0 || right < length) {
+            if (left >= 0) {
+                const char = text[left];
+                if (isWordChar(char) || isCjkChar(char)) {
+                    index = left;
+                    return char;
+                }
+                left -= 1;
+            }
+            if (right < length) {
+                const char = text[right];
+                if (isWordChar(char) || isCjkChar(char)) {
+                    index = right;
+                    return char;
+                }
+                right += 1;
+            }
+        }
+        return null;
+    };
+
+    let char = text[index];
+    if (/\s/.test(char)) {
+        let left = index - 1;
+        while (left >= 0 && /\s/.test(text[left])) {
+            left -= 1;
+        }
+        if (left >= 0) {
+            index = left;
+            char = text[index];
+        } else {
+            let right = index + 1;
+            while (right < length && /\s/.test(text[right])) {
+                right += 1;
+            }
+            if (right < length) {
+                index = right;
+                char = text[index];
+            } else {
+                return null;
+            }
+        }
+    }
+
+    if (!isWordChar(char) && !isCjkChar(char)) {
+        const nearest = pickNearestWordChar();
+        if (!nearest) {
+            return null;
+        }
+        char = nearest;
+    }
+
+    const expandWhile = (predicate: (value: string) => boolean) => {
+        let start = index;
+        let end = index + 1;
+        while (start - 1 >= 0 && predicate(text[start - 1])) {
+            start -= 1;
+        }
+        while (end < length && predicate(text[end])) {
+            end += 1;
+        }
+        return { start, end };
+    };
+
+    if (isCjkChar(char)) {
+        return expandWhile(isCjkChar);
+    }
+
+    return expandWhile(isWordChar);
+};
 
 const normalizeSubtitleLabel = (label: string) =>
     label
@@ -119,6 +219,7 @@ const parseVttOrSrt = (input: string): SubtitleCue[] => {
     const lines = input.replace(/\r/g, '').split('\n');
     const cues: SubtitleCue[] = [];
     let index = 0;
+    let cueIndex = 0;
 
     while (index < lines.length) {
         const line = lines[index].trim();
@@ -148,7 +249,9 @@ const parseVttOrSrt = (input: string): SubtitleCue[] => {
         }
 
         const text = textLines.join('\n').replace(/<[^>]+>/g, '');
-        cues.push({ start, end, text });
+        const id = `${start}-${end}-${cueIndex}`;
+        cues.push({ id, start, end, text });
+        cueIndex += 1;
     }
 
     return cues;
@@ -157,6 +260,7 @@ const parseVttOrSrt = (input: string): SubtitleCue[] => {
 const parseAss = (input: string): SubtitleCue[] => {
     const lines = input.replace(/\r/g, '').split('\n');
     const cues: SubtitleCue[] = [];
+    let cueIndex = 0;
     let inEvents = false;
     let format: string[] = [];
 
@@ -195,11 +299,16 @@ const parseAss = (input: string): SubtitleCue[] => {
             .replace(/\\N/g, '\n')
             .replace(/\\n/g, '\n');
 
-        const text = rawText.replace(/<[^>]+>/g, '');
+        const text = rawText.replace(/<[^>]+>/g, '').trim();
+        if (!text) {
+            return;
+        }
 
         const start = parseTimestamp(parts[startIndex]);
         const end = parseTimestamp(parts[endIndex]);
-        cues.push({ start, end, text });
+        const id = `${start}-${end}-${cueIndex}`;
+        cues.push({ id, start, end, text });
+        cueIndex += 1;
     });
 
     return cues;
@@ -220,6 +329,148 @@ const parseSubtitles = (input: string, url: string): SubtitleCue[] => {
 
     return parseVttOrSrt(trimmed);
 };
+
+const buildAnkiTags = (entry: DictionaryResult): string[] => {
+    const allTags = new Set(['manatan']);
+    entry.definitions?.forEach((def) => def.tags?.forEach((tag) => allTags.add(tag)));
+    entry.termTags?.forEach((tag: any) => {
+        if (typeof tag === 'string') {
+            allTags.add(tag);
+            return;
+        }
+        if (tag && typeof tag === 'object' && tag.name) {
+            allTags.add(tag.name);
+        }
+    });
+    return Array.from(allTags);
+};
+
+const generateAnkiFurigana = (entry: DictionaryResult): string => {
+    if (!entry.furigana || entry.furigana.length === 0) {
+        return entry.headword;
+    }
+    return entry.furigana
+        .map((segment) => {
+            const kanji = segment[0];
+            const kana = segment[1];
+            if (kana && kana !== kanji) {
+                return `${kanji}[${kana}]`;
+            }
+            return kanji;
+        })
+        .join('');
+};
+
+const getLowestFrequency = (entry: DictionaryResult): string => {
+    if (!entry.frequencies || entry.frequencies.length === 0) {
+        return '';
+    }
+    const numbers = entry.frequencies
+        .map((frequency) => {
+            const cleaned = frequency.value?.replace?.(/[^\d]/g, '') ?? '';
+            return parseInt(cleaned, 10);
+        })
+        .filter((value) => Number.isFinite(value));
+    if (!numbers.length) {
+        return '';
+    }
+    return Math.min(...numbers).toString();
+};
+
+const buildDefinitionHtml = (entry: DictionaryResult): string => {
+    const styleToString = (style: Record<string, any>): string => {
+        if (!style) {
+            return '';
+        }
+        return Object.entries(style)
+            .map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${value}`)
+            .join(';');
+    };
+
+    const generateHTML = (node: any): string => {
+        if (node === null || node === undefined) {
+            return '';
+        }
+        if (typeof node === 'string' || typeof node === 'number') {
+            return String(node);
+        }
+        if (Array.isArray(node)) {
+            return node.map(generateHTML).join('');
+        }
+        if (node.type === 'structured-content') {
+            return generateHTML(node.content);
+        }
+
+        const { tag, content, style, href } = node;
+        const customStyle = styleToString(style);
+
+        if (tag === 'ul') {
+            return `<ul style="padding-left: 20px; margin: 2px 0; list-style-type: disc;${customStyle}">${generateHTML(content)}</ul>`;
+        }
+        if (tag === 'ol') {
+            return `<ol style="padding-left: 20px; margin: 2px 0; list-style-type: decimal;${customStyle}">${generateHTML(content)}</ol>`;
+        }
+        if (tag === 'li') {
+            return `<li style="${customStyle}">${generateHTML(content)}</li>`;
+        }
+        if (tag === 'table') {
+            return `<table style="border-collapse: collapse; width: 100%; border: 1px solid #777;${customStyle}"><tbody>${generateHTML(content)}</tbody></table>`;
+        }
+        if (tag === 'tr') {
+            return `<tr style="${customStyle}">${generateHTML(content)}</tr>`;
+        }
+        if (tag === 'th') {
+            return `<th style="border: 1px solid #777; padding: 2px 8px; text-align: center; font-weight: bold;${customStyle}">${generateHTML(content)}</th>`;
+        }
+        if (tag === 'td') {
+            return `<td style="border: 1px solid #777; padding: 2px 8px; text-align: center;${customStyle}">${generateHTML(content)}</td>`;
+        }
+        if (tag === 'span') {
+            return `<span style="${customStyle}">${generateHTML(content)}</span>`;
+        }
+        if (tag === 'div') {
+            return `<div style="${customStyle}">${generateHTML(content)}</div>`;
+        }
+        if (tag === 'a') {
+            return `<a href="${href}" target="_blank" style="text-decoration: underline;${customStyle}">${generateHTML(content)}</a>`;
+        }
+
+        return generateHTML(content);
+    };
+
+    return entry.definitions
+        .map((def, idx) => {
+            const tagsHTML = (def.tags ?? [])
+                .map(
+                    (tag) =>
+                        `<span style="display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 0.75em; font-weight: bold; margin-right: 6px; color: #fff; background-color: #666; vertical-align: middle;">${tag}</span>`,
+                )
+                .join('');
+            const dictHTML = `<span style="display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 0.75em; font-weight: bold; margin-right: 6px; color: #fff; background-color: #9b59b6; vertical-align: middle;">${def.dictionaryName}</span>`;
+            const contentHTML = def.content
+                .map((content) => {
+                    try {
+                        const parsed = JSON.parse(content);
+                        return `<div style="margin-bottom: 2px;">${generateHTML(parsed)}</div>`;
+                    } catch {
+                        return `<div>${content}</div>`;
+                    }
+                })
+                .join('');
+            return `
+                <div style="margin-bottom: 12px; display: flex;">
+                    <div style="flex-shrink: 0; width: 24px; font-weight: bold;">${idx + 1}.</div>
+                    <div style="flex-grow: 1;">
+                        <div style="margin-bottom: 4px;">${tagsHTML}${dictHTML}</div>
+                        <div>${contentHTML}</div>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+};
+
+const getDictionaryEntryKey = (entry: DictionaryResult) => `${entry.headword}::${entry.reading}`;
 
 export const AnimeVideoPlayer = ({
     videoSrc,
@@ -245,11 +496,18 @@ export const AnimeVideoPlayer = ({
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const isMobile = MediaQuery.useIsTouchDevice() || useMediaQuery(theme.breakpoints.down('sm'));
+    const { isAndroid, isDesktopPlatform } = useMemo(() => {
+        const ua = navigator.userAgent;
+        const android = /android/i.test(ua);
+        const ios = /iphone|ipad|ipod/i.test(ua);
+        return { isAndroid: android, isDesktopPlatform: !android && !ios };
+    }, []);
     const isLandscape = useMediaQuery('(orientation: landscape)');
     const shouldShowFullscreen = showFullscreenButton ?? isDesktop;
-    const { wasPopupClosedRecently, settings, openSettings } = useOCR();
+    const { wasPopupClosedRecently, settings, openSettings, showAlert } = useOCR();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [isPaused, setIsPaused] = useState(true);
+    const [isVideoLoading, setIsVideoLoading] = useState(true);
     const [isOverlayVisible, setIsOverlayVisible] = useState(true);
     const [autoOverlayDisabled, setAutoOverlayDisabled] = useState(false);
     const [activeCues, setActiveCues] = useState<SubtitleCue[]>([]);
@@ -267,6 +525,12 @@ export const AnimeVideoPlayer = ({
         `anime-${animeId}-subtitle-offset-ms`,
         0,
     );
+    const safeSubtitleOffsetMs = Number.isFinite(subtitleOffsetMs) ? subtitleOffsetMs : 0;
+    const [highlightedSubtitle, setHighlightedSubtitle] = useState<{
+        key: string;
+        start: number;
+        end: number;
+    } | null>(null);
     const [savedSubtitleLabel, setSavedSubtitleLabel] = useLocalStorage<string | null>(
         `anime-${animeId}-subtitle-label`,
         null,
@@ -292,6 +556,14 @@ export const AnimeVideoPlayer = ({
     const [dictionaryLoading, setDictionaryLoading] = useState(false);
     const [dictionarySystemLoading, setDictionarySystemLoading] = useState(false);
     const [dictionaryQuery, setDictionaryQuery] = useState('');
+    const [isCaptureMode, setIsCaptureMode] = useState(false);
+    const [dictionaryContext, setDictionaryContext] = useState<{
+        sentence: string;
+        audioStart: number;
+        audioEnd: number;
+    } | null>(null);
+    const [ankiActionPending, setAnkiActionPending] = useState<Record<string, boolean>>({});
+    const [showTapZoneHint, setShowTapZoneHint] = useState(false);
     const [isBrave, setIsBrave] = useState(false);
     const [isBraveLinux, setIsBraveLinux] = useState(false);
     const [showBraveProxyToggle, setShowBraveProxyToggle] = useState(false);
@@ -300,6 +572,7 @@ export const AnimeVideoPlayer = ({
         `anime-${animeId}-subtitle-disabled`,
         false,
     );
+    const [localSubtitleTracks, setLocalSubtitleTracks] = useState<SubtitleTrack[]>([]);
     const isAnyMenuOpen = Boolean(videoMenuAnchor || subtitleMenuAnchor || speedMenuAnchor || episodeMenuAnchor);
     const lastSubtitleWarningRef = useRef<string | null>(null);
     const lastPlaybackWarningRef = useRef<number | null>(null);
@@ -321,6 +594,67 @@ export const AnimeVideoPlayer = ({
         (braveAudioFixMode === 'on' || (braveAudioFixMode === 'auto' && autoBraveFixDetected));
     const braveSegmentDurationRef = useRef<number | null>(null);
     const [isPageFullscreen, setIsPageFullscreen] = useState(false);
+    const localSubtitleCuesRef = useRef<Map<string, SubtitleCue[]>>(new Map());
+    const subtitleFileInputRef = useRef<HTMLInputElement | null>(null);
+    const subtitleOffsetTapRef = useRef(0);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+    const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+    const audioGainRef = useRef<GainNode | null>(null);
+    const audioCaptureLockRef = useRef(false);
+    const [ankiStatusByEntry, setAnkiStatusByEntry] = useState<
+        Record<string, { status: 'unknown' | 'loading' | 'missing' | 'exists'; noteId?: number | null }>
+    >({});
+    const ankiActionPendingRef = useRef<Record<string, boolean>>({});
+    const shouldRenderSubtitles = !isSubtitleDisabled && selectedSubtitleIndex !== null;
+
+    const resetSubtitleDisplay = useCallback(() => {
+        if (subtitleRenderResetRef.current !== null) {
+            window.cancelAnimationFrame(subtitleRenderResetRef.current);
+            subtitleRenderResetRef.current = null;
+        }
+        activeCueKeyRef.current = '';
+        setActiveCues([]);
+        setSubtitleCues([]);
+        setHighlightedSubtitle(null);
+    }, []);
+
+    const promptSubtitleOffset = useCallback(() => {
+        const currentValue = Number.isFinite(safeSubtitleOffsetMs) ? safeSubtitleOffsetMs : 0;
+        const input = window.prompt('Subtitle offset (ms)', `${currentValue}`);
+        if (input === null) {
+            return;
+        }
+        const nextValue = Number(input.trim());
+        if (!Number.isFinite(nextValue)) {
+            makeToast('Enter a valid number of milliseconds.', 'warning');
+            return;
+        }
+        setSubtitleOffsetMs(Math.round(nextValue));
+    }, [safeSubtitleOffsetMs, setSubtitleOffsetMs]);
+
+    const handleSubtitleOffsetTap = useCallback(
+        (event: React.TouchEvent) => {
+            event.stopPropagation();
+            const now = Date.now();
+            if (now - subtitleOffsetTapRef.current < 300) {
+                subtitleOffsetTapRef.current = 0;
+                promptSubtitleOffset();
+                return;
+            }
+            subtitleOffsetTapRef.current = now;
+        },
+        [promptSubtitleOffset],
+    );
+
+    useEffect(() => {
+        if (shouldRenderSubtitles) {
+            return;
+        }
+        resetSubtitleDisplay();
+    }, [resetSubtitleDisplay, shouldRenderSubtitles]);
+    const subtitleRenderResetRef = useRef<number | null>(null);
+    const activeCueKeyRef = useRef<string>('');
 
     useEffect(() => {
         if (isPaused && !dictionaryVisible && !autoOverlayDisabled) {
@@ -328,13 +662,18 @@ export const AnimeVideoPlayer = ({
         }
     }, [autoOverlayDisabled, isPaused, dictionaryVisible]);
 
+    const availableSubtitleTracks = useMemo(
+        () => [...subtitleTracks, ...localSubtitleTracks],
+        [subtitleTracks, localSubtitleTracks],
+    );
+
     const subtitleOptions = useMemo(
         () =>
-            subtitleTracks.map((track, index) => ({
+            availableSubtitleTracks.map((track, index) => ({
                 index,
                 label: track.label || track.lang || `Subtitle ${index + 1}`,
             })),
-        [subtitleTracks],
+        [availableSubtitleTracks],
     );
 
     useEffect(() => {
@@ -363,6 +702,9 @@ export const AnimeVideoPlayer = ({
     }, [fillHeight, isMobile]);
 
     useEffect(() => {
+        if (selectedSubtitleIndex !== null && availableSubtitleTracks[selectedSubtitleIndex]?.source === 'local') {
+            return;
+        }
         const storedLabel = savedSubtitleLabel ?? undefined;
         if (isSubtitleDisabled) {
             setSelectedSubtitleIndex(null);
@@ -386,14 +728,16 @@ export const AnimeVideoPlayer = ({
             ? subtitleOptions.findIndex((option) => option.label === storedLabel)
             : -1;
         if (matchIndex >= 0) {
-            const matchedTrack = subtitleTracks[matchIndex];
+            const matchedTrack = availableSubtitleTracks[matchIndex];
             if (desiredSource && desiredSource === 'jimaku' && matchedTrack?.source !== 'jimaku') {
                 setSelectedSubtitleIndex(null);
             } else {
                 setSelectedSubtitleIndex(matchIndex);
-                const matchedKey = buildSubtitleKey(subtitleOptions[matchIndex].label, matchedTrack?.source);
-                if (matchedKey && matchedKey !== savedSubtitleKey) {
-                    setSavedSubtitleKey(matchedKey);
+                if (matchedTrack?.source !== 'local') {
+                    const matchedKey = buildSubtitleKey(subtitleOptions[matchIndex].label, matchedTrack?.source);
+                    if (matchedKey && matchedKey !== savedSubtitleKey) {
+                        setSavedSubtitleKey(matchedKey);
+                    }
                 }
                 return;
             }
@@ -411,7 +755,7 @@ export const AnimeVideoPlayer = ({
                 .filter((entry) => entry.normalized === desiredNormalized);
             if (candidates.length) {
                 const withSource = candidates.find(
-                    (entry) => subtitleTracks[entry.option.index]?.source === desiredSource,
+                    (entry) => availableSubtitleTracks[entry.option.index]?.source === desiredSource,
                 );
                 const chosen = withSource ?? (desiredSource === 'jimaku' ? null : candidates[0]);
                 if (!chosen) {
@@ -422,7 +766,7 @@ export const AnimeVideoPlayer = ({
                 if (chosen.option.label !== storedLabel) {
                     setSavedSubtitleLabel(chosen.option.label);
                 }
-                if (savedSubtitleKey !== effectiveKey) {
+                if (savedSubtitleKey !== effectiveKey && availableSubtitleTracks[chosen.option.index]?.source !== 'local') {
                     setSavedSubtitleKey(effectiveKey);
                 }
                 return;
@@ -440,8 +784,9 @@ export const AnimeVideoPlayer = ({
         savedSubtitleLabel,
         setSavedSubtitleKey,
         setSavedSubtitleLabel,
+        selectedSubtitleIndex,
         subtitleOptions,
-        subtitleTracks,
+        availableSubtitleTracks,
         subtitleTracksReady,
     ]);
 
@@ -573,10 +918,10 @@ export const AnimeVideoPlayer = ({
         if (selectedSubtitleIndex === null) {
             return;
         }
-        if (selectedSubtitleIndex >= subtitleTracks.length) {
+        if (selectedSubtitleIndex >= availableSubtitleTracks.length) {
             setSelectedSubtitleIndex(null);
         }
-    }, [selectedSubtitleIndex, subtitleTracks.length]);
+    }, [selectedSubtitleIndex, availableSubtitleTracks.length]);
 
     useEffect(() => {
         const video = videoRef.current;
@@ -806,10 +1151,50 @@ export const AnimeVideoPlayer = ({
         autoBraveFixDetected,
     ]);
 
+    const tapZoneHintTimeoutRef = useRef<number | null>(null);
+    const showTapZoneHintFor = useCallback(
+        (durationMs: number = 3000) => {
+            if (!isMobile) {
+                setShowTapZoneHint(false);
+                return;
+            }
+            setShowTapZoneHint(true);
+            if (tapZoneHintTimeoutRef.current !== null) {
+                window.clearTimeout(tapZoneHintTimeoutRef.current);
+            }
+            tapZoneHintTimeoutRef.current = window.setTimeout(() => {
+                setShowTapZoneHint(false);
+                tapZoneHintTimeoutRef.current = null;
+            }, durationMs);
+        },
+        [isMobile],
+    );
+
+    useEffect(() => () => {
+        if (tapZoneHintTimeoutRef.current !== null) {
+            window.clearTimeout(tapZoneHintTimeoutRef.current);
+        }
+    }, []);
+
+    useEffect(() => {
+        showTapZoneHintFor(3000);
+    }, [showTapZoneHintFor, videoSrc]);
+
+    useEffect(() => {
+        setIsVideoLoading(true);
+    }, [videoSrc]);
+
+    useEffect(() => {
+        setLocalSubtitleTracks([]);
+        localSubtitleCuesRef.current.clear();
+    }, [videoSrc]);
+
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return () => {};
 
+        const markLoading = () => setIsVideoLoading(true);
+        const clearLoading = () => setIsVideoLoading(false);
         const onPlay = () => {
             userPausedRef.current = false;
             setIsPaused(false);
@@ -828,12 +1213,26 @@ export const AnimeVideoPlayer = ({
             setBuffered(Math.min(end / video.duration, 1));
         };
 
+        video.addEventListener('loadstart', markLoading);
+        video.addEventListener('waiting', markLoading);
+        video.addEventListener('stalled', markLoading);
+        video.addEventListener('seeking', markLoading);
+        video.addEventListener('canplay', clearLoading);
+        video.addEventListener('playing', clearLoading);
+        video.addEventListener('seeked', clearLoading);
         video.addEventListener('play', onPlay);
         video.addEventListener('pause', onPause);
         video.addEventListener('timeupdate', onTimeUpdate);
         video.addEventListener('durationchange', onDurationChange);
         video.addEventListener('progress', onProgress);
         return () => {
+            video.removeEventListener('loadstart', markLoading);
+            video.removeEventListener('waiting', markLoading);
+            video.removeEventListener('stalled', markLoading);
+            video.removeEventListener('seeking', markLoading);
+            video.removeEventListener('canplay', clearLoading);
+            video.removeEventListener('playing', clearLoading);
+            video.removeEventListener('seeked', clearLoading);
             video.removeEventListener('play', onPlay);
             video.removeEventListener('pause', onPause);
             video.removeEventListener('timeupdate', onTimeUpdate);
@@ -846,13 +1245,18 @@ export const AnimeVideoPlayer = ({
         subtitleRequestRef.current += 1;
         const requestId = subtitleRequestRef.current;
         if (selectedSubtitleIndex === null) {
+            resetSubtitleDisplay();
+            return;
+        }
+
+        const track = availableSubtitleTracks[selectedSubtitleIndex];
+        if (!track) {
             setSubtitleCues([]);
             return;
         }
 
-        const track = subtitleTracks[selectedSubtitleIndex];
-        if (!track) {
-            setSubtitleCues([]);
+        if (track.source === 'local') {
+            setSubtitleCues(localSubtitleCuesRef.current.get(track.url) ?? []);
             return;
         }
 
@@ -907,52 +1311,1012 @@ export const AnimeVideoPlayer = ({
         return () => {
             abortController.abort();
         };
-    }, [selectedSubtitleIndex, settings.jimakuApiKey, subtitleTracks]);
+    }, [selectedSubtitleIndex, settings.jimakuApiKey, availableSubtitleTracks, resetSubtitleDisplay]);
 
     useEffect(() => {
+        if (subtitleRenderResetRef.current !== null) {
+            window.cancelAnimationFrame(subtitleRenderResetRef.current);
+            subtitleRenderResetRef.current = null;
+        }
+
         if (!subtitleCues.length) {
+            activeCueKeyRef.current = '';
             setActiveCues([]);
+            setHighlightedSubtitle(null);
             return;
         }
 
-        const offsetSeconds = subtitleOffsetMs / 1000;
-        setActiveCues(
-            subtitleCues.filter(
-                (cue) => currentTime + offsetSeconds >= cue.start && currentTime + offsetSeconds <= cue.end,
-            ),
+        const offsetSeconds = safeSubtitleOffsetMs / 1000;
+        const baseTime = videoRef.current?.currentTime ?? currentTime;
+        const effectiveTime = baseTime + offsetSeconds;
+        const nextCues = subtitleCues.filter(
+            (cue) =>
+                effectiveTime + SUBTITLE_TIME_EPSILON >= cue.start &&
+                effectiveTime - SUBTITLE_TIME_EPSILON <= cue.end,
         );
-    }, [currentTime, subtitleCues, subtitleOffsetMs]);
+        const nextKey = nextCues.map((cue) => cue.id).join('|');
+
+        if (nextKey === activeCueKeyRef.current) {
+            setActiveCues(nextCues);
+            return;
+        }
+
+        activeCueKeyRef.current = nextKey;
+        setActiveCues([]);
+        setHighlightedSubtitle(null);
+        if (!nextCues.length) {
+            return;
+        }
+
+        subtitleRenderResetRef.current = window.requestAnimationFrame(() => {
+            subtitleRenderResetRef.current = null;
+            setActiveCues(nextCues);
+        });
+    }, [currentTime, subtitleCues, safeSubtitleOffsetMs]);
 
     const sortedSubtitleCues = useMemo(
         () => [...subtitleCues].sort((a, b) => a.start - b.start),
         [subtitleCues],
     );
 
-    const handleSubtitleClick = async (event: React.MouseEvent<HTMLDivElement>, text: string) => {
+    const getSubtitleSyncTarget = useCallback(
+        (direction: 'previous' | 'next') => {
+            if (!sortedSubtitleCues.length) {
+                return null;
+            }
+
+            const offsetSeconds = safeSubtitleOffsetMs / 1000;
+            const baseTime = videoRef.current?.currentTime ?? currentTime;
+            const effectiveTime = baseTime + offsetSeconds;
+            const epsilon = SUBTITLE_TIME_EPSILON;
+
+            if (direction === 'previous') {
+                for (let i = sortedSubtitleCues.length - 1; i >= 0; i -= 1) {
+                    const cue = sortedSubtitleCues[i];
+                    if (cue.start < effectiveTime - epsilon) {
+                        return cue;
+                    }
+                }
+                return sortedSubtitleCues[0];
+            }
+
+            for (let i = 0; i < sortedSubtitleCues.length; i += 1) {
+                const cue = sortedSubtitleCues[i];
+                if (cue.start > effectiveTime + epsilon) {
+                    return cue;
+                }
+            }
+
+            return sortedSubtitleCues[sortedSubtitleCues.length - 1];
+        },
+        [sortedSubtitleCues, currentTime, safeSubtitleOffsetMs],
+    );
+
+    const syncSubtitleOffsetToCue = useCallback(
+        (cue: SubtitleCue | null) => {
+            if (!cue) {
+                return;
+            }
+            const baseTime = videoRef.current?.currentTime ?? currentTime;
+            if (!Number.isFinite(baseTime)) {
+                return;
+            }
+            setSubtitleOffsetMs(Math.round((cue.start - baseTime) * 1000));
+        },
+        [currentTime, setSubtitleOffsetMs],
+    );
+
+    const ensureAudioNodes = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return null;
+        }
+        if (audioContextRef.current && audioSourceRef.current && audioDestinationRef.current && audioGainRef.current) {
+            if (audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume().catch(() => {});
+            }
+            return {
+                context: audioContextRef.current,
+                destination: audioDestinationRef.current,
+                gain: audioGainRef.current,
+            };
+        }
+        const AudioContextCtor =
+            window.AudioContext ||
+            (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioContextCtor) {
+            return null;
+        }
+        try {
+            const context = new AudioContextCtor();
+            const source = context.createMediaElementSource(video);
+            const gain = context.createGain();
+            const destination = context.createMediaStreamDestination();
+            gain.gain.value = 1;
+            source.connect(gain);
+            gain.connect(context.destination);
+            source.connect(destination);
+            context.resume().catch(() => {});
+            audioContextRef.current = context;
+            audioSourceRef.current = source;
+            audioGainRef.current = gain;
+            audioDestinationRef.current = destination;
+            return { context, destination, gain };
+        } catch (error) {
+            console.error('[AnimeVideoPlayer] Audio setup failed', error);
+            return null;
+        }
+    }, []);
+
+    const seekVideoTo = useCallback((targetTime: number) => {
+        const video = videoRef.current;
+        if (!video) {
+            return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+            let resolved = false;
+            const onSeeked = () => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                window.clearTimeout(timeout);
+                video.removeEventListener('seeked', onSeeked);
+                resolve();
+            };
+            const timeout = window.setTimeout(() => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                video.removeEventListener('seeked', onSeeked);
+                resolve();
+            }, 1000);
+            video.addEventListener('seeked', onSeeked, { once: true });
+            video.currentTime = targetTime;
+        });
+    }, []);
+
+    const blobToBase64 = useCallback((blob: Blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read audio data.'));
+        reader.readAsDataURL(blob);
+    }), []);
+
+    const captureVideoFrame = useCallback(async () => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth || !video.videoHeight) {
+            if (!video) {
+                return null;
+            }
+        }
+
+        const waitForFrame = async () => {
+            if (!video) {
+                return;
+            }
+            if (video.videoWidth && video.videoHeight) {
+                return;
+            }
+            await new Promise<void>((resolve) => {
+                let settled = false;
+                const onReady = () => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    window.clearTimeout(timeout);
+                    video.removeEventListener('loadeddata', onReady);
+                    video.removeEventListener('loadedmetadata', onReady);
+                    resolve();
+                };
+                const timeout = window.setTimeout(() => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    video.removeEventListener('loadeddata', onReady);
+                    video.removeEventListener('loadedmetadata', onReady);
+                    resolve();
+                }, 800);
+                video.addEventListener('loadeddata', onReady, { once: true });
+                video.addEventListener('loadedmetadata', onReady, { once: true });
+                const videoWithFrameCallback = video as HTMLVideoElement & {
+                    requestVideoFrameCallback?: (callback: () => void) => number;
+                };
+                if (typeof videoWithFrameCallback.requestVideoFrameCallback === 'function') {
+                    videoWithFrameCallback.requestVideoFrameCallback(() => {
+                        if (settled) {
+                            return;
+                        }
+                        settled = true;
+                        window.clearTimeout(timeout);
+                        video.removeEventListener('loadeddata', onReady);
+                        video.removeEventListener('loadedmetadata', onReady);
+                        resolve();
+                    });
+                }
+            });
+        }
+        const wasPaused = video?.paused ?? true;
+        if (video && (video.readyState < 2 || !video.videoWidth || !video.videoHeight)) {
+            await video.play().catch(() => {});
+            await waitForFrame();
+            if (wasPaused) {
+                video.pause();
+            }
+        }
+        if (!video || !video.videoWidth || !video.videoHeight) {
+            return null;
+        }
+
+        let captureModeApplied = false;
+        const applyCaptureMode = async () => {
+            if (captureModeApplied) {
+                return;
+            }
+            captureModeApplied = true;
+            setIsCaptureMode(true);
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        };
+
+        const isNativeApp = /MangatanNative|ManatanNative/i.test(navigator.userAgent);
+        const getVideoContentRect = () => {
+            const rect = video.getBoundingClientRect();
+            const videoWidth = video.videoWidth || 1;
+            const videoHeight = video.videoHeight || 1;
+            if (!rect.width || !rect.height) {
+                return rect;
+            }
+            const videoRatio = videoWidth / videoHeight;
+            const elementRatio = rect.width / rect.height;
+            let width = rect.width;
+            let height = rect.height;
+            let offsetX = 0;
+            let offsetY = 0;
+            if (videoRatio > elementRatio) {
+                height = rect.width / videoRatio;
+                offsetY = (rect.height - height) / 2;
+            } else {
+                width = rect.height * videoRatio;
+                offsetX = (rect.width - width) / 2;
+            }
+            return {
+                x: rect.left + offsetX,
+                y: rect.top + offsetY,
+                width,
+                height,
+            };
+        };
+
+        const captureNativeFrame = async () => {
+            const native = (window as typeof window & { ManatanNative?: { captureFrame?: (callbackId: string, payload: string) => void } })
+                .ManatanNative;
+            if (!native?.captureFrame) {
+                return null;
+            }
+            const rect = getVideoContentRect();
+            if (!rect.width || !rect.height) {
+                return null;
+            }
+            const callbacks = (window as typeof window & {
+                __manatanNativeCaptureCallbacks?: Record<string, (data?: string | null) => void>;
+                __manatanNativeCaptureCallback?: (id: string, data?: string | null) => void;
+            });
+            if (!callbacks.__manatanNativeCaptureCallbacks) {
+                callbacks.__manatanNativeCaptureCallbacks = {};
+            }
+            if (!callbacks.__manatanNativeCaptureCallback) {
+                callbacks.__manatanNativeCaptureCallback = (id: string, data?: string | null) => {
+                    const cb = callbacks.__manatanNativeCaptureCallbacks?.[id];
+                    if (cb) {
+                        cb(data ?? null);
+                        delete callbacks.__manatanNativeCaptureCallbacks?.[id];
+                    }
+                };
+            }
+
+            const payload = {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                dpr: window.devicePixelRatio || 1,
+                quality: Number.isFinite(settings.ankiImageQuality) ? settings.ankiImageQuality : 0.92,
+            };
+
+            return new Promise<string | null>((resolve) => {
+                const callbackId = `native_capture_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                const timeout = window.setTimeout(() => {
+                    delete callbacks.__manatanNativeCaptureCallbacks?.[callbackId];
+                    resolve(null);
+                }, 2000);
+                callbacks.__manatanNativeCaptureCallbacks[callbackId] = (data) => {
+                    window.clearTimeout(timeout);
+                    if (!data) {
+                        resolve(null);
+                        return;
+                    }
+                    const normalized = data.startsWith('data:') ? data : `data:image/jpeg;base64,${data}`;
+                    resolve(normalized);
+                };
+                try {
+                    native.captureFrame(callbackId, JSON.stringify(payload));
+                } catch (error) {
+                    window.clearTimeout(timeout);
+                    delete callbacks.__manatanNativeCaptureCallbacks?.[callbackId];
+                    console.error('[AnimeVideoPlayer] Native screenshot failed', error);
+                    resolve(null);
+                }
+            });
+        };
+
+        try {
+            await applyCaptureMode();
+            const quality = Number.isFinite(settings.ankiImageQuality) ? settings.ankiImageQuality : 0.92;
+            const primaryType = isNativeApp ? 'image/jpeg' : 'image/webp';
+            const encodeCanvas = async (canvas: HTMLCanvasElement, type: string) => {
+                if (canvas.toBlob) {
+                    try {
+                        const blob = await new Promise<Blob | null>((resolve) =>
+                            canvas.toBlob(resolve, type, quality),
+                        );
+                        if (blob && blob.size > 0) {
+                            return blobToBase64(blob);
+                        }
+                    } catch (error) {
+                        console.error('[AnimeVideoPlayer] Screenshot encode failed', error);
+                    }
+                }
+                try {
+                    return canvas.toDataURL(type, quality);
+                } catch (error) {
+                    console.error('[AnimeVideoPlayer] Screenshot export failed', error);
+                    return null;
+                }
+            };
+            const encodeWithFallback = async (canvas: HTMLCanvasElement) => {
+                const primaryImage = await encodeCanvas(canvas, primaryType);
+                if (primaryImage) {
+                    return primaryImage;
+                }
+                if (primaryType !== 'image/jpeg') {
+                    const jpegImage = await encodeCanvas(canvas, 'image/jpeg');
+                    if (jpegImage) {
+                        return jpegImage;
+                    }
+                }
+                return null;
+            };
+            const captureStreamFrame = async () => {
+                const captureStream = video.captureStream?.bind(video) ?? video.mozCaptureStream?.bind(video);
+                if (!captureStream || !('ImageCapture' in window)) {
+                    return null;
+                }
+                let track: MediaStreamTrack | undefined;
+                try {
+                    const stream = captureStream();
+                    [track] = stream.getVideoTracks();
+                    if (!track) {
+                        return null;
+                    }
+                    const imageCapture = new (window as typeof window & { ImageCapture: typeof ImageCapture }).ImageCapture(track);
+                    const frame = await imageCapture.grabFrame();
+                    const canvas = document.createElement('canvas');
+                    canvas.width = frame.width;
+                    canvas.height = frame.height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        return null;
+                    }
+                    ctx.drawImage(frame, 0, 0);
+                    return await encodeWithFallback(canvas);
+                } catch (error) {
+                    console.error('[AnimeVideoPlayer] Screenshot stream capture failed', error);
+                    return null;
+                } finally {
+                    try {
+                        track?.stop();
+                    } catch {
+                        // ignore
+                    }
+                }
+            };
+            const captureCanvasFrame = async () => {
+                const maxSourceDim = Math.max(video.videoWidth, video.videoHeight);
+                const maxDimension = isNativeApp ? Math.min(1280, maxSourceDim) : maxSourceDim;
+                const scale = maxSourceDim ? Math.min(1, maxDimension / maxSourceDim) : 1;
+                const width = Math.max(1, Math.round(video.videoWidth * scale));
+                const height = Math.max(1, Math.round(video.videoHeight * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return null;
+                }
+
+                let drawn = false;
+                try {
+                    ctx.drawImage(video, 0, 0, width, height);
+                    drawn = true;
+                } catch (error) {
+                    if (typeof window.createImageBitmap === 'function') {
+                        try {
+                            const bitmap = await window.createImageBitmap(video);
+                            ctx.drawImage(bitmap, 0, 0, width, height);
+                            if (typeof bitmap.close === 'function') {
+                                bitmap.close();
+                            }
+                            drawn = true;
+                        } catch (bitmapError) {
+                            console.error('[AnimeVideoPlayer] Screenshot draw failed', bitmapError);
+                        }
+                    } else {
+                        console.error('[AnimeVideoPlayer] Screenshot draw failed', error);
+                    }
+                }
+
+                if (!drawn) {
+                    return null;
+                }
+
+                return await encodeWithFallback(canvas);
+            };
+
+            if (isNativeApp) {
+                const nativeImage = await captureNativeFrame();
+                if (nativeImage) {
+                    return nativeImage;
+                }
+            }
+
+            const streamImage = await captureStreamFrame();
+            if (streamImage) {
+                return streamImage;
+            }
+
+            const canvasImage = await captureCanvasFrame();
+            if (canvasImage) {
+                return canvasImage;
+            }
+
+            return null;
+        } finally {
+            if (captureModeApplied) {
+                setIsCaptureMode(false);
+            }
+        }
+    }, [blobToBase64, settings.ankiImageQuality]);
+
+    const getAudioCaptureSource = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return null;
+        }
+        const captureStream = video.captureStream?.bind(video) ?? video.mozCaptureStream?.bind(video);
+        if (!captureStream) {
+            const audioNodes = ensureAudioNodes();
+            if (audioNodes?.destination?.stream) {
+                const { gain, destination, context } = audioNodes;
+                return {
+                    stream: destination.stream,
+                    mute: () => {
+                        const previousGain = gain.gain.value;
+                        gain.gain.value = 0;
+                        return () => {
+                            gain.gain.value = previousGain;
+                            if (context.state === 'suspended') {
+                                context.resume().catch(() => {});
+                            }
+                        };
+                    },
+                };
+            }
+            return null;
+        }
+        const stream = captureStream();
+        const audioTracks = stream.getAudioTracks();
+        if (!audioTracks.length) {
+            const audioNodes = ensureAudioNodes();
+            if (audioNodes?.destination?.stream) {
+                const { gain, destination, context } = audioNodes;
+                return {
+                    stream: destination.stream,
+                    mute: () => {
+                        const previousGain = gain.gain.value;
+                        gain.gain.value = 0;
+                        return () => {
+                            gain.gain.value = previousGain;
+                            if (context.state === 'suspended') {
+                                context.resume().catch(() => {});
+                            }
+                        };
+                    },
+                };
+            }
+            return null;
+        }
+        return { stream: new MediaStream(audioTracks), mute: () => () => {} };
+    }, [ensureAudioNodes]);
+
+    const captureSentenceAudio = useCallback(async (start: number, end: number) => {
+        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+            return null;
+        }
+        const duration = Math.max(0, end - start);
+        if (duration <= 0) {
+            return null;
+        }
+        if (audioCaptureLockRef.current) {
+            return null;
+        }
+
+        const video = videoRef.current;
+        if (!video) {
+            return null;
+        }
+
+        audioCaptureLockRef.current = true;
+        const previousTime = video.currentTime;
+        const previousPaused = video.paused;
+        let audioSource: { stream: MediaStream; mute: () => () => void } | null = null;
+        let restoreMute: (() => void) | null = null;
+        let scriptProcessor: ScriptProcessorNode | null = null;
+        let processorGain: GainNode | null = null;
+        let shouldRestorePlayback = false;
+        const fetchServerAudioClip = async () => {
+            if (currentEpisodeIndex == null) {
+                return null;
+            }
+            const params = new URLSearchParams({
+                animeId: String(animeId),
+                episodeIndex: String(currentEpisodeIndex),
+                videoIndex: String(selectedVideoIndex),
+                start: String(start),
+                end: String(end),
+            });
+            try {
+                const response = await fetch(
+                    `/api/audio/clip?${params.toString()}`,
+                    { method: 'POST', credentials: 'include' },
+                );
+                if (!response.ok) {
+                    console.warn('[AnimeVideoPlayer] Server audio capture failed', response.status);
+                    return null;
+                }
+                const blob = await response.blob();
+                if (!blob.size) {
+                    return null;
+                }
+                return await blobToBase64(blob);
+            } catch (error) {
+                console.error('[AnimeVideoPlayer] Server audio capture failed', error);
+                return null;
+            }
+        };
+
+        try {
+            const isNativeApp = /MangatanNative|ManatanNative/i.test(navigator.userAgent);
+            const shouldForceServerAudio = isDesktopPlatform || isAndroid || isNativeApp;
+            if (shouldForceServerAudio || isHlsSource) {
+                const serverAudio = await fetchServerAudioClip();
+                if (serverAudio) {
+                    return serverAudio;
+                }
+                if (shouldForceServerAudio) {
+                    return null;
+                }
+            }
+
+            await seekVideoTo(start);
+            shouldRestorePlayback = true;
+            await video.play().catch(() => {});
+            // Add slight delay for Android audio decoders to spin up
+            await new Promise((resolve) => setTimeout(resolve, 150));
+
+            audioSource = getAudioCaptureSource();
+            if (!audioSource) {
+                return null;
+            }
+            restoreMute = audioSource.mute();
+
+            const captureWithMediaRecorder = async () => {
+                if (typeof MediaRecorder === 'undefined') {
+                    return null;
+                }
+                
+                // Prioritize webm/ogg on Android/WebViews as mp4 MediaRecorder support is flaky
+                const preferredMimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
+                const selectedMimeType =
+                    preferredMimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+                let recorder: MediaRecorder;
+                try {
+                    recorder = selectedMimeType
+                        ? new MediaRecorder(audioSource.stream, { mimeType: selectedMimeType })
+                        : new MediaRecorder(audioSource.stream);
+                } catch (error) {
+                    try {
+                        recorder = new MediaRecorder(audioSource.stream);
+                    } catch {
+                        console.error('[AnimeVideoPlayer] MediaRecorder init failed', error);
+                        return null;
+                    }
+                }
+                const chunks: BlobPart[] = [];
+                recorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        chunks.push(event.data);
+                    }
+                };
+                const blobPromise = new Promise<Blob>((resolve, reject) => {
+                    recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }));
+                    recorder.onerror = (event) => reject(event);
+                });
+
+                const stopAfterMs = Math.max(200, duration * 1000);
+                const safetyTimeoutMs = stopAfterMs + 1500;
+
+                try {
+                    recorder.start();
+                } catch (error) {
+                    console.error('[AnimeVideoPlayer] MediaRecorder start failed', error);
+                    return null;
+                }
+                const stopTimer = window.setTimeout(() => {
+                    try {
+                        if (recorder.state !== 'inactive') {
+                            recorder.stop();
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }, stopAfterMs);
+
+                const audioBlob = await Promise.race([
+                    blobPromise,
+                    new Promise<Blob | null>((resolve) => window.setTimeout(() => resolve(null), safetyTimeoutMs)),
+                ]);
+                window.clearTimeout(stopTimer);
+                if (!audioBlob || !audioBlob.size) {
+                    return null;
+                }
+                return await blobToBase64(audioBlob);
+            };
+
+            const encodeWav = (samples: Float32Array, sampleRate: number) => {
+                const buffer = new ArrayBuffer(44 + samples.length * 2);
+                const view = new DataView(buffer);
+                const writeString = (offset: number, value: string) => {
+                    for (let i = 0; i < value.length; i += 1) {
+                        view.setUint8(offset + i, value.charCodeAt(i));
+                    }
+                };
+                const floatTo16BitPCM = (offset: number) => {
+                    let outOffset = offset;
+                    for (let i = 0; i < samples.length; i += 1) {
+                        let sample = Math.max(-1, Math.min(1, samples[i]));
+                        sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+                        view.setInt16(outOffset, sample, true);
+                        outOffset += 2;
+                    }
+                };
+
+                const dataLength = samples.length * 2;
+                writeString(0, 'RIFF');
+                view.setUint32(4, 36 + dataLength, true);
+                writeString(8, 'WAVE');
+                writeString(12, 'fmt ');
+                view.setUint32(16, 16, true);
+                view.setUint16(20, 1, true);
+                view.setUint16(22, 1, true);
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, sampleRate * 2, true);
+                view.setUint16(32, 2, true);
+                view.setUint16(34, 16, true);
+                writeString(36, 'data');
+                view.setUint32(40, dataLength, true);
+                floatTo16BitPCM(44);
+                return buffer;
+            };
+
+            const captureWithWebAudio = async () => {
+                const nodes = ensureAudioNodes();
+                const context = nodes?.context ?? audioContextRef.current;
+                const source = audioSourceRef.current;
+                if (!context || !source || typeof context.createScriptProcessor !== 'function') {
+                    return null;
+                }
+                if (context.state === 'suspended') {
+                    await context.resume().catch(() => {});
+                }
+
+                const bufferSize = 4096;
+                scriptProcessor = context.createScriptProcessor(bufferSize, 2, 2);
+                processorGain = context.createGain();
+                processorGain.gain.value = 0;
+
+                const recorded: Float32Array[] = [];
+                let totalLength = 0;
+                scriptProcessor.onaudioprocess = (event) => {
+                    const input = event.inputBuffer;
+                    const channelCount = input.numberOfChannels;
+                    if (!channelCount) {
+                        return;
+                    }
+                    const length = input.length;
+                    const mono = new Float32Array(length);
+                    for (let channel = 0; channel < channelCount; channel += 1) {
+                        const data = input.getChannelData(channel);
+                        for (let i = 0; i < length; i += 1) {
+                            mono[i] += data[i];
+                        }
+                    }
+                    if (channelCount > 1) {
+                        for (let i = 0; i < length; i += 1) {
+                            mono[i] /= channelCount;
+                        }
+                    }
+                    recorded.push(mono);
+                    totalLength += length;
+                };
+
+                try {
+                    source.connect(scriptProcessor);
+                    scriptProcessor.connect(processorGain);
+                    processorGain.connect(context.destination);
+                } catch (error) {
+                    console.error('[AnimeVideoPlayer] WebAudio capture connect failed', error);
+                    return null;
+                }
+
+                await new Promise((resolve) => window.setTimeout(resolve, duration * 1000));
+
+                try {
+                    source.disconnect(scriptProcessor);
+                } catch {
+                    // ignore
+                }
+                try {
+                    scriptProcessor.disconnect();
+                } catch {
+                    // ignore
+                }
+                try {
+                    processorGain.disconnect();
+                } catch {
+                    // ignore
+                }
+
+                if (!totalLength) {
+                    return null;
+                }
+                const samples = new Float32Array(totalLength);
+                let offset = 0;
+                recorded.forEach((chunk) => {
+                    samples.set(chunk, offset);
+                    offset += chunk.length;
+                });
+                const wavBuffer = encodeWav(samples, context.sampleRate);
+                const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+                return await blobToBase64(wavBlob);
+            };
+
+            const recorderBase64 = await captureWithMediaRecorder();
+            if (recorderBase64) {
+                return recorderBase64;
+            }
+
+            const wavBase64 = await captureWithWebAudio();
+            if (wavBase64) {
+                return wavBase64;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[AnimeVideoPlayer] Audio capture failed', error);
+            return null;
+        } finally {
+            try {
+                if (audioSource?.stream) {
+                    audioSource.stream.getTracks().forEach((track) => track.stop());
+                }
+            } catch {
+                // ignore
+            }
+            try {
+                scriptProcessor?.disconnect();
+                processorGain?.disconnect();
+            } catch {
+                // ignore
+            }
+            restoreMute?.();
+            if (shouldRestorePlayback) {
+                video.pause();
+                await seekVideoTo(previousTime);
+                if (!previousPaused) {
+                    video.play().catch(() => {});
+                }
+            }
+            audioCaptureLockRef.current = false;
+        }
+    }, [animeId, blobToBase64, currentEpisodeIndex, getAudioCaptureSource, isHlsSource, seekVideoTo, selectedVideoIndex]);
+
+    const addNoteToAnki = useCallback(
+        async (entry: DictionaryResult, overrideImage?: string) => {
+            if (!settings.ankiDeck || !settings.ankiModel) {
+                showAlert('Anki Settings Missing', 'Please select a Deck and Model in settings.');
+                return null;
+            }
+            if (!dictionaryContext?.sentence) {
+                showAlert('Sentence Missing', 'Select a subtitle to set the sentence context first.');
+                return null;
+            }
+            const map = settings.ankiFieldMap || {};
+            const fields: Record<string, string> = {};
+            const sentence = dictionaryContext?.sentence || '';
+
+            Object.entries(map).forEach(([ankiField, mapType]) => {
+                if (mapType === 'Target Word') fields[ankiField] = entry.headword;
+                else if (mapType === 'Reading') fields[ankiField] = entry.reading;
+                else if (mapType === 'Furigana') fields[ankiField] = generateAnkiFurigana(entry);
+                else if (mapType === 'Definition') fields[ankiField] = buildDefinitionHtml(entry);
+                else if (mapType === 'Frequency') fields[ankiField] = getLowestFrequency(entry);
+                else if (mapType === 'Sentence') fields[ankiField] = sentence;
+            });
+
+            const tags = buildAnkiTags(entry);
+            const url = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+            const imgField = Object.keys(map).find((key) => map[key] === 'Image');
+            const audioField = Object.keys(map).find((key) => map[key] === 'Sentence Audio');
+
+            let pictureData: { data?: string; filename: string; fields: string[] } | undefined;
+            if (imgField) {
+                const base64 = overrideImage || (await captureVideoFrame());
+                if (base64) {
+                    pictureData = {
+                        data: base64.split(';base64,')[1],
+                        filename: `manatan_card_${Date.now()}.webp`,
+                        fields: [imgField],
+                    };
+                } else {
+                    makeToast('Could not capture a video frame for the Anki image.', 'warning');
+                }
+            }
+
+            let audioData:
+                | { data?: string; filename: string; fields: string[] }
+                | undefined;
+            if (audioField && dictionaryContext?.audioStart != null && dictionaryContext?.audioEnd != null) {
+                const audioBase64 = await captureSentenceAudio(dictionaryContext.audioStart, dictionaryContext.audioEnd);
+                if (audioBase64) {
+                    const isMp4 = audioBase64.startsWith('data:audio/mp4');
+                    const isOgg = audioBase64.startsWith('data:audio/ogg');
+                    const isWav = audioBase64.startsWith('data:audio/wav');
+                    const extension = isMp4 ? 'm4a' : isOgg ? 'ogg' : isWav ? 'wav' : 'webm';
+                    audioData = {
+                        data: audioBase64.split(';base64,')[1],
+                        filename: `manatan_sentence_${Date.now()}.${extension}`,
+                        fields: [audioField],
+                    };
+                } else {
+                    makeToast('Could not capture sentence audio from the video.', 'warning');
+                }
+            }
+
+            try {
+                const noteId = await addNote(url, settings.ankiDeck, settings.ankiModel, fields, tags, pictureData, audioData);
+                makeToast('Anki card added.', { variant: 'success', autoHideDuration: 1500 });
+                return noteId;
+            } catch (error: any) {
+                console.error('[AnimeVideoPlayer] Failed to add note', error);
+                makeToast('Failed to add Anki card', 'error', error?.message ?? String(error));
+                return null;
+            }
+        },
+        [
+            captureSentenceAudio,
+            captureVideoFrame,
+            dictionaryContext,
+            settings.ankiConnectUrl,
+            settings.ankiDeck,
+            settings.ankiFieldMap,
+            settings.ankiModel,
+            showAlert,
+        ],
+    );
+
+
+    const getSubtitleCharOffset = (element: HTMLElement, clientX: number, clientY: number) => {
+        const rangeFromPoint = document.caretRangeFromPoint?.(clientX, clientY);
+        const caretPosition = document.caretPositionFromPoint?.(clientX, clientY);
+
+        let targetNode: Node | null = null;
+        let targetOffset = 0;
+
+        if (rangeFromPoint) {
+            targetNode = rangeFromPoint.startContainer;
+            targetOffset = rangeFromPoint.startOffset;
+        } else if (caretPosition) {
+            targetNode = caretPosition.offsetNode;
+            targetOffset = caretPosition.offset;
+        }
+
+        if (targetNode && targetNode.nodeType === Node.TEXT_NODE) {
+            if (targetOffset > 0) {
+                const checkRange = document.createRange();
+                checkRange.setStart(targetNode, targetOffset - 1);
+                checkRange.setEnd(targetNode, targetOffset);
+                const rect = checkRange.getBoundingClientRect();
+                if (
+                    clientX >= rect.left &&
+                    clientX <= rect.right &&
+                    clientY >= rect.top &&
+                    clientY <= rect.bottom
+                ) {
+                    targetOffset -= 1;
+                }
+            }
+
+            const range = document.createRange();
+            range.setStart(element, 0);
+            range.setEnd(targetNode, targetOffset);
+            return range.toString().length;
+        }
+
+        if (rangeFromPoint) {
+            const range = document.createRange();
+            range.setStart(element, 0);
+            range.setEnd(rangeFromPoint.startContainer, rangeFromPoint.startOffset);
+            return range.toString().length;
+        }
+
+        if (caretPosition) {
+            const range = document.createRange();
+            range.setStart(element, 0);
+            range.setEnd(caretPosition.offsetNode, caretPosition.offset);
+            return range.toString().length;
+        }
+
+        return 0;
+    };
+
+    const handleSubtitleClick = async (
+        event: React.MouseEvent<HTMLDivElement>,
+        text: string,
+        cueKey: string,
+        cueStart: number,
+        cueEnd: number,
+    ) => {
         event.stopPropagation();
         if (wasPopupClosedRecently()) {
             return;
         }
 
         const element = event.currentTarget;
-        const rangeFromPoint = document.caretRangeFromPoint?.(event.clientX, event.clientY);
-        const caretPosition = document.caretPositionFromPoint?.(event.clientX, event.clientY);
-        let charOffset = 0;
+        const charOffset = getSubtitleCharOffset(element, event.clientX, event.clientY);
 
-        if (rangeFromPoint) {
-            const range = document.createRange();
-            range.setStart(element, 0);
-            range.setEnd(rangeFromPoint.startContainer, rangeFromPoint.startOffset);
-            charOffset = range.toString().length;
-        } else if (caretPosition) {
-            const range = document.createRange();
-            range.setStart(element, 0);
-            range.setEnd(caretPosition.offsetNode, caretPosition.offset);
-            charOffset = range.toString().length;
-        }
+        const safeCharOffset = Math.min(Math.max(charOffset, 0), text.length);
+        const fallbackHighlightRange = getSubtitleHighlightRange(text, safeCharOffset);
+        setHighlightedSubtitle(null);
+
+        const applyDictionaryHighlight = (matchLen?: number | null) => {
+            if (matchLen && matchLen > 0) {
+                const end = Math.min(text.length, safeCharOffset + matchLen);
+                setHighlightedSubtitle({ key: cueKey, start: safeCharOffset, end });
+                return;
+            }
+            if (fallbackHighlightRange) {
+                setHighlightedSubtitle({ key: cueKey, ...fallbackHighlightRange });
+            } else {
+                setHighlightedSubtitle(null);
+            }
+        };
 
         const encoder = new TextEncoder();
-        const byteIndex = encoder.encode(text.substring(0, charOffset)).length;
+        const byteIndex = encoder.encode(text.substring(0, safeCharOffset)).length;
 
         const video = videoRef.current;
         if (!dictionaryVisible) {
@@ -962,6 +2326,10 @@ export const AnimeVideoPlayer = ({
         setIsPageFullscreen(false);
         video?.pause();
 
+        const offsetSeconds = safeSubtitleOffsetMs / 1000;
+        const audioStart = Math.max(0, cueStart - offsetSeconds);
+        const audioEnd = Math.max(audioStart, cueEnd - offsetSeconds);
+        setDictionaryContext({ sentence: text, audioStart, audioEnd });
         setDictionaryVisible(true);
         setDictionaryQuery(text);
         setDictionaryResults([]);
@@ -977,6 +2345,8 @@ export const AnimeVideoPlayer = ({
             setDictionaryResults(results || []);
             setDictionaryLoading(false);
             setDictionarySystemLoading(false);
+            const matchLen = results?.[0]?.matchLen;
+            applyDictionaryHighlight(matchLen);
         }
     };
 
@@ -1001,6 +2371,7 @@ export const AnimeVideoPlayer = ({
         const shouldResume = resumePlaybackRef.current;
         const previousOverlayVisible = overlayVisibilityRef.current;
         setDictionaryVisible(false);
+        setDictionaryContext(null);
         if (!video || !shouldResume) {
             setIsOverlayVisible(previousOverlayVisible);
             return;
@@ -1011,6 +2382,185 @@ export const AnimeVideoPlayer = ({
             .then(() => setIsOverlayVisible(false))
             .catch(() => setIsOverlayVisible(previousOverlayVisible));
     };
+
+    const ankiTargetField = useMemo(
+        () => Object.keys(settings.ankiFieldMap || {}).find((key) => settings.ankiFieldMap?.[key] === 'Target Word'),
+        [settings.ankiFieldMap],
+    );
+
+    const checkDuplicateForEntry = useCallback(
+        async (entry: DictionaryResult) => {
+            if (!settings.ankiConnectEnabled || !settings.ankiCheckDuplicates || !settings.ankiDeck) {
+                return;
+            }
+            const entryKey = getDictionaryEntryKey(entry);
+            setAnkiStatusByEntry((prev) => ({
+                ...prev,
+                [entryKey]: { status: 'loading', noteId: null },
+            }));
+            try {
+                const url = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+                const safeHeadword = entry.headword.replace(/"/g, '\\"');
+                let query = `deck:"${settings.ankiDeck}"`;
+                if (ankiTargetField) {
+                    query += ` "${ankiTargetField}:${safeHeadword}"`;
+                } else {
+                    query += ` "${safeHeadword}"`;
+                }
+                const ids = await findNotes(url, query);
+                if (ids.length > 0) {
+                    setAnkiStatusByEntry((prev) => ({
+                        ...prev,
+                        [entryKey]: { status: 'exists', noteId: ids[0] },
+                    }));
+                } else {
+                    setAnkiStatusByEntry((prev) => ({
+                        ...prev,
+                        [entryKey]: { status: 'missing', noteId: null },
+                    }));
+                }
+            } catch (error) {
+                console.error('[AnimeVideoPlayer] Anki duplicate check failed', error);
+                setAnkiStatusByEntry((prev) => ({
+                    ...prev,
+                    [entryKey]: { status: 'unknown', noteId: null },
+                }));
+            }
+        },
+        [ankiTargetField, settings.ankiCheckDuplicates, settings.ankiConnectEnabled, settings.ankiConnectUrl, settings.ankiDeck],
+    );
+
+    useEffect(() => {
+        if (!dictionaryVisible || !dictionaryResults.length) {
+            return;
+        }
+        if (!settings.ankiConnectEnabled) {
+            return;
+        }
+        dictionaryResults.forEach((entry) => {
+            const entryKey = getDictionaryEntryKey(entry);
+            if (!settings.ankiCheckDuplicates) {
+                setAnkiStatusByEntry((prev) => ({
+                    ...prev,
+                    [entryKey]: { status: 'missing', noteId: null },
+                }));
+                return;
+            }
+            checkDuplicateForEntry(entry);
+        });
+    }, [dictionaryResults, dictionaryVisible, settings.ankiCheckDuplicates, settings.ankiConnectEnabled, checkDuplicateForEntry]);
+
+    const handleAnkiOpen = useCallback(
+        async (entry: DictionaryResult) => {
+            if (!settings.ankiConnectEnabled) {
+                showAlert('AnkiConnect Disabled', 'Enable AnkiConnect in settings to open cards.');
+                return;
+            }
+            if (!settings.ankiDeck) {
+                showAlert('Anki Settings Missing', 'Please select a Deck in settings.');
+                return;
+            }
+            try {
+                const entryKey = getDictionaryEntryKey(entry);
+                const status = ankiStatusByEntry[entryKey];
+                const url = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+                if (status?.noteId) {
+                    await guiBrowse(url, `nid:${status.noteId}`);
+                    return;
+                }
+                const safeHeadword = entry.headword.replace(/"/g, '\\"');
+                let query = `deck:"${settings.ankiDeck}"`;
+                if (ankiTargetField) {
+                    query += ` "${ankiTargetField}:${safeHeadword}"`;
+                } else {
+                    query += ` "${safeHeadword}"`;
+                }
+                await guiBrowse(url, query);
+            } catch (error) {
+                console.error('[AnimeVideoPlayer] Failed to open Anki browser', error);
+            }
+        },
+        [ankiStatusByEntry, ankiTargetField, settings.ankiConnectEnabled, settings.ankiConnectUrl, settings.ankiDeck, showAlert],
+    );
+
+    const handleAnkiAdd = useCallback(
+        async (entry: DictionaryResult) => {
+            const entryKey = getDictionaryEntryKey(entry);
+            if (ankiActionPendingRef.current[entryKey]) {
+                return;
+            }
+            ankiActionPendingRef.current[entryKey] = true;
+            setAnkiStatusByEntry((prev) => ({
+                ...prev,
+                [entryKey]: { status: 'loading', noteId: prev[entryKey]?.noteId ?? null },
+            }));
+            setAnkiActionPending((prev) => ({ ...prev, [entryKey]: true }));
+            try {
+                const timeoutMs = 25000;
+                let timeoutId: number | undefined;
+                const timeoutPromise = new Promise<{ type: 'timeout' }>((resolve) => {
+                    timeoutId = window.setTimeout(() => resolve({ type: 'timeout' }), timeoutMs);
+                });
+                const result = await Promise.race([
+                    addNoteToAnki(entry)
+                        .then((value) => ({ type: 'value' as const, value }))
+                        .catch((error) => ({ type: 'error' as const, error })),
+                    timeoutPromise,
+                ]);
+                if (timeoutId !== undefined) {
+                    window.clearTimeout(timeoutId);
+                }
+
+                if (result.type === 'timeout') {
+                    makeToast('Anki add timed out.', 'warning');
+                    setAnkiStatusByEntry((prev) => ({
+                        ...prev,
+                        [entryKey]: { status: 'missing', noteId: null },
+                    }));
+                    return;
+                }
+                if (result.type === 'error') {
+                    console.error('[AnimeVideoPlayer] Failed to add note', result.error);
+                    makeToast('Failed to add Anki card', 'error', result.error?.message ?? String(result.error));
+                    setAnkiStatusByEntry((prev) => ({
+                        ...prev,
+                        [entryKey]: { status: 'missing', noteId: null },
+                    }));
+                    return;
+                }
+
+                const noteId = result.value;
+                if (noteId) {
+                    setAnkiStatusByEntry((prev) => ({
+                        ...prev,
+                        [entryKey]: { status: 'exists', noteId },
+                    }));
+                } else {
+                    setAnkiStatusByEntry((prev) => ({
+                        ...prev,
+                        [entryKey]: { status: 'missing', noteId: null },
+                    }));
+                }
+            } finally {
+                setAnkiActionPending((prev) => ({ ...prev, [entryKey]: false }));
+                ankiActionPendingRef.current[entryKey] = false;
+            }
+        },
+        [
+            addNoteToAnki,
+            settings.ankiFieldMap,
+            setAnkiActionPending,
+            setAnkiStatusByEntry,
+        ],
+    );
+
+    const getAnkiEntryStatus = useCallback(
+        (entry: DictionaryResult) => {
+            const entryKey = getDictionaryEntryKey(entry);
+            return ankiStatusByEntry[entryKey]?.status ?? (settings.ankiCheckDuplicates ? 'unknown' : 'missing');
+        },
+        [ankiStatusByEntry, settings.ankiCheckDuplicates],
+    );
 
     const handleOverlayToggle = () => {
         if (dictionaryVisible) {
@@ -1026,6 +2576,16 @@ export const AnimeVideoPlayer = ({
     const isFullHeight = fillHeight || isPageFullscreen;
     const wrapperFixed = isPageFullscreen || (fillHeight && isMobile);
     const wrapperFullBleed = isFullHeight;
+    const isTapZoneActive = isMobile && !dictionaryVisible && !isOverlayVisible;
+    const tapZonePercentRaw = Number.isFinite(settings.tapZonePercent) ? settings.tapZonePercent : 30;
+    const tapZonePercent = Math.min(Math.max(tapZonePercentRaw, 10), 60);
+    const subtitleBottomOffset = isMobile
+        ? isLandscape
+            ? 'calc(env(safe-area-inset-bottom) + 28px)'
+            : isOverlayVisible
+                ? 'calc(env(safe-area-inset-bottom) + 140px)'
+                : 'calc(env(safe-area-inset-bottom) + 84px)'
+        : 48;
 
     const handleSeek = (_: Event, value: number | number[]) => {
         const video = videoRef.current;
@@ -1067,6 +2627,7 @@ export const AnimeVideoPlayer = ({
         (index: number | null) => {
             setSelectedSubtitleIndex(index);
             if (index === null) {
+                resetSubtitleDisplay();
                 setSavedSubtitleLabel(null);
                 setSavedSubtitleKey(null);
                 setIsSubtitleDisabled(true);
@@ -1074,14 +2635,23 @@ export const AnimeVideoPlayer = ({
             }
             setIsSubtitleDisabled(false);
             const option = subtitleOptions[index];
-            const track = subtitleTracks[index];
+            const track = availableSubtitleTracks[index];
             const label = option?.label ?? null;
-            setSavedSubtitleLabel(label);
-            if (label) {
-                setSavedSubtitleKey(buildSubtitleKey(label, track?.source));
+            if (track?.source !== 'local') {
+                setSavedSubtitleLabel(label);
+                if (label) {
+                    setSavedSubtitleKey(buildSubtitleKey(label, track?.source));
+                }
             }
         },
-        [setIsSubtitleDisabled, setSavedSubtitleKey, setSavedSubtitleLabel, subtitleOptions, subtitleTracks],
+        [
+            resetSubtitleDisplay,
+            setIsSubtitleDisabled,
+            setSavedSubtitleKey,
+            setSavedSubtitleLabel,
+            subtitleOptions,
+            availableSubtitleTracks,
+        ],
     );
 
     const subtitleMenuItems = useMemo(
@@ -1112,6 +2682,49 @@ export const AnimeVideoPlayer = ({
         setSavedPlaybackRate(rate);
     };
 
+    const importSubtitleFile = useCallback(
+        async (file: File) => {
+            try {
+                const text = await file.text();
+                const cues = parseSubtitles(text, file.name);
+                if (!cues.length) {
+                    makeToast('No subtitle cues found in file.', 'warning');
+                }
+                const key = `local:${Date.now()}-${file.name}`;
+                localSubtitleCuesRef.current.set(key, cues);
+                const track: SubtitleTrack = {
+                    url: key,
+                    lang: 'local',
+                    label: file.name,
+                    source: 'local',
+                };
+                setLocalSubtitleTracks((prev) => {
+                    const next = [...prev, track];
+                    const nextIndex = subtitleTracks.length + next.length - 1;
+                    setSelectedSubtitleIndex(nextIndex);
+                    setIsSubtitleDisabled(false);
+                    return next;
+                });
+            } catch (error) {
+                console.error('[AnimeVideoPlayer] Failed to import subtitle file', error);
+                makeToast('Failed to import subtitle file.', 'error');
+            }
+        },
+        [subtitleTracks.length],
+    );
+
+    const handleSubtitleFileChange = useCallback(
+        (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) {
+                return;
+            }
+            importSubtitleFile(file);
+        },
+        [importSubtitleFile],
+    );
+
     const seekBy = (delta: number) => {
         const video = videoRef.current;
         if (!video) return;
@@ -1137,9 +2750,9 @@ export const AnimeVideoPlayer = ({
             seekBy(-10);
             return;
         }
-        const offsetSeconds = subtitleOffsetMs / 1000;
+        const offsetSeconds = safeSubtitleOffsetMs / 1000;
         const effectiveTime = currentTime + offsetSeconds;
-        const epsilon = 0.05;
+        const epsilon = SUBTITLE_TIME_EPSILON;
         for (let i = sortedSubtitleCues.length - 1; i >= 0; i -= 1) {
             const cue = sortedSubtitleCues[i];
             if (cue.start < effectiveTime - epsilon) {
@@ -1159,9 +2772,9 @@ export const AnimeVideoPlayer = ({
             seekBy(10);
             return;
         }
-        const offsetSeconds = subtitleOffsetMs / 1000;
+        const offsetSeconds = safeSubtitleOffsetMs / 1000;
         const effectiveTime = currentTime + offsetSeconds;
-        const epsilon = 0.05;
+        const epsilon = SUBTITLE_TIME_EPSILON;
         for (let i = 0; i < sortedSubtitleCues.length; i += 1) {
             const cue = sortedSubtitleCues[i];
             if (cue.start > effectiveTime + epsilon) {
@@ -1220,6 +2833,38 @@ export const AnimeVideoPlayer = ({
         [markMenuInteraction, onVideoChange, renderSelectionIcon, selectedVideoIndex, videoOptions],
     );
 
+    const renderSubtitleText = useCallback(
+        (text: string, cueKey: string) => {
+            if (!highlightedSubtitle || highlightedSubtitle.key !== cueKey) {
+                return text;
+            }
+
+            const { start, end } = highlightedSubtitle;
+            if (start < 0 || end <= start || end > text.length) {
+                return text;
+            }
+
+            return (
+                <>
+                    {text.slice(0, start)}
+                    <Box
+                        component="span"
+                        sx={{
+                            backgroundColor: 'rgba(255,255,255,0.28)',
+                            color: 'inherit',
+                            borderRadius: 0.6,
+                            px: 0.4,
+                        }}
+                    >
+                        {text.slice(start, end)}
+                    </Box>
+                    {text.slice(end)}
+                </>
+            );
+        },
+        [highlightedSubtitle],
+    );
+
     return (
         <Box
             sx={{
@@ -1262,14 +2907,78 @@ export const AnimeVideoPlayer = ({
                 }}
             >
                 <Box
-                component="video"
-                ref={videoRef}
-                playsInline
-                autoPlay
-                preload="metadata"
-                crossOrigin="use-credentials"
-                sx={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: 'black' }}
+                    component="input"
+                    type="file"
+                    accept=".srt,.vtt,.ass,.ssa"
+                    onChange={handleSubtitleFileChange}
+                    ref={subtitleFileInputRef}
+                    sx={{ display: 'none' }}
+                />
+                <Box
+                    component="video"
+                    ref={videoRef}
+                    playsInline
+                    autoPlay
+                    preload="metadata"
+                    crossOrigin="anonymous"
+                    sx={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: 'black' }}
+                />
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: isCaptureMode ? 'none' : 'block',
+                    }}
+                >
+                    <Box
+                sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: `${tapZonePercent}%`,
+                    zIndex: 2,
+                    backgroundColor: showTapZoneHint ? 'rgba(255,0,0,0.2)' : 'transparent',
+                    transition: 'background-color 0.3s ease',
+                    pointerEvents: isTapZoneActive ? 'auto' : 'none',
+                }}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    if (!isTapZoneActive) {
+                        return;
+                    }
+                    togglePlay();
+                }}
             />
+            {showTapZoneHint && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: `${tapZonePercent}%`,
+                        zIndex: 3,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    <Typography
+                        variant="body2"
+                        sx={{
+                            color: '#fff',
+                            backgroundColor: 'rgba(0,0,0,0.4)',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 999,
+                        }}
+                    >
+                        Tap here to play/pause
+                    </Typography>
+                </Box>
+            )}
             {statusMessage && (
                 <Box
                     sx={{
@@ -1283,6 +2992,7 @@ export const AnimeVideoPlayer = ({
                         px: 2,
                         zIndex: 4,
                         pointerEvents: 'none',
+                        transform: 'translateY(-32px)',
                     }}
                 >
                     <Typography variant="body2">{statusMessage}</Typography>
@@ -1293,11 +3003,7 @@ export const AnimeVideoPlayer = ({
                     position: 'absolute',
                     left: 0,
                     right: 0,
-                    bottom: isMobile
-                        ? isLandscape
-                            ? 'calc(env(safe-area-inset-bottom) + 28px)'
-                            : 'calc(env(safe-area-inset-bottom) + 84px)'
-                        : 48,
+                    bottom: subtitleBottomOffset,
                     px: 2,
                     pb: 2,
                     textAlign: 'center',
@@ -1306,37 +3012,39 @@ export const AnimeVideoPlayer = ({
                     alignItems: 'center',
                 }}
             >
-                {activeCues.map((cue) => (
-                    <Box
-                        key={`${cue.start}-${cue.end}`}
-                        sx={{
-                            color: 'white',
-                            borderRadius: 1,
-                            p: 0.5,
-                            mb: 0.5,
-                            pointerEvents: 'auto',
-                            cursor: 'pointer',
-                            whiteSpace: 'pre-line',
-                            textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-                            display: 'inline-block',
-                            alignSelf: 'center',
-                            maxWidth: '100%',
-                        }}
-                        onClick={(event) => handleSubtitleClick(event, cue.text)}
-                    >
-                        <Typography
-                            variant="body1"
+                {shouldRenderSubtitles &&
+                    activeCues.map((cue) => (
+                        <Box
+                            key={cue.id}
                             sx={{
-                                fontSize: settings.subtitleFontSize || 22,
-                                fontWeight: settings.subtitleFontWeight ?? 600,
-                                textShadow:
-                                    '0 0 1px rgba(0,0,0,0.9), 0 1px 1px rgba(0,0,0,0.9), 0 -1px 1px rgba(0,0,0,0.9), 1px 0 1px rgba(0,0,0,0.9), -1px 0 1px rgba(0,0,0,0.9)',
+                                color: 'white',
+                                borderRadius: 1,
+                                p: 0.5,
+                                mb: 0.5,
+                                pointerEvents: 'auto',
+                                cursor: 'pointer',
+                                whiteSpace: 'pre-line',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.8)',
+                                display: 'inline-block',
+                                alignSelf: 'center',
+                                maxWidth: '100%',
+                                WebkitTapHighlightColor: 'transparent',
                             }}
+                onClick={(event) => handleSubtitleClick(event, cue.text, cue.id, cue.start, cue.end)}
                         >
-                            {cue.text}
-                        </Typography>
-                    </Box>
-                ))}
+                            <Typography
+                                variant="body1"
+                                sx={{
+                                    fontSize: settings.subtitleFontSize || 22,
+                                    fontWeight: settings.subtitleFontWeight ?? 600,
+                                    textShadow:
+                                        '0 0 1px rgba(0,0,0,0.9), 0 1px 1px rgba(0,0,0,0.9), 0 -1px 1px rgba(0,0,0,0.9), 1px 0 1px rgba(0,0,0,0.9), -1px 0 1px rgba(0,0,0,0.9)',
+                                }}
+                            >
+                                {renderSubtitleText(cue.text, cue.id)}
+                            </Typography>
+                        </Box>
+                    ))}
             </Stack>
             {dictionaryVisible && (
                 <>
@@ -1400,6 +3108,81 @@ export const AnimeVideoPlayer = ({
                                                 </Box>
                                             ))}
                                         </Box>
+                                        {settings.ankiConnectEnabled && (
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                {(!settings.ankiDeck || !settings.ankiModel) ? (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            showAlert(
+                                                                'Anki Settings Missing',
+                                                                'Select a target Deck and Card Type in settings.',
+                                                            );
+                                                        }}
+                                                        title="Anki settings missing"
+                                                        sx={{ color: '#d04a4a' }}
+                                                    >
+                                                        <CloseIcon fontSize="small" />
+                                                    </IconButton>
+                                                ) : (() => {
+                                                    const entryKey = getDictionaryEntryKey(entry);
+                                                    if (ankiActionPending[entryKey]) {
+                                                        return (
+                                                            <IconButton
+                                                                size="small"
+                                                                disabled
+                                                                title="Adding card..."
+                                                                sx={{ color: '#888' }}
+                                                            >
+                                                                <HourglassEmptyIcon fontSize="small" />
+                                                            </IconButton>
+                                                        );
+                                                    }
+                                                    const status = getAnkiEntryStatus(entry);
+                                                    if (status === 'exists') {
+                                                        return (
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    handleAnkiOpen(entry);
+                                                                }}
+                                                                title="Open in Anki"
+                                                                sx={{ color: '#2ecc71' }}
+                                                            >
+                                                                <MenuBookIcon fontSize="small" />
+                                                            </IconButton>
+                                                        );
+                                                    }
+                                                    if (status === 'missing') {
+                                                        return (
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    handleAnkiAdd(entry);
+                                                                }}
+                                                                title="Add to Anki"
+                                                                sx={{ color: '#4fb0ff' }}
+                                                            >
+                                                                <AddCircleOutlineIcon fontSize="small" />
+                                                            </IconButton>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <IconButton
+                                                            size="small"
+                                                            disabled
+                                                            title="Checking duplicates"
+                                                            sx={{ color: '#888' }}
+                                                        >
+                                                            <HourglassEmptyIcon fontSize="small" />
+                                                        </IconButton>
+                                                    );
+                                                })()}
+                                            </Stack>
+                                        )}
                                     </Stack>
                                     {entry.definitions?.map((def, defIndex) => (
                                         <Stack key={`${entry.headword}-def-${defIndex}`} sx={{ mb: 1 }}>
@@ -1467,7 +3250,6 @@ export const AnimeVideoPlayer = ({
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 2,
-                        zIndex: 2,
                     }}
                         onClick={(event) => {
                             event.stopPropagation();
@@ -1526,6 +3308,18 @@ export const AnimeVideoPlayer = ({
                                 color="inherit"
                             >
                                 <SpeedIcon />
+                            </IconButton>
+                            <IconButton
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    markMenuInteraction();
+                                    showTapZoneHintFor(3000);
+                                }}
+                                color="inherit"
+                                aria-label="Show tap zone"
+                                title="Show tap zone"
+                            >
+                                <InfoOutlinedIcon />
                             </IconButton>
                             <IconButton
                                 onClick={(event) => {
@@ -1595,7 +3389,13 @@ export const AnimeVideoPlayer = ({
                                 color="inherit"
                                 sx={{ pointerEvents: 'auto' }}
                             >
-                                {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+                                {isVideoLoading ? (
+                                    <CircularProgress size={32} color="inherit" />
+                                ) : isPaused ? (
+                                    <PlayArrowIcon />
+                                ) : (
+                                    <PauseIcon />
+                                )}
                             </IconButton>
                             <IconButton
                                 onClick={(event) => {
@@ -1609,7 +3409,7 @@ export const AnimeVideoPlayer = ({
                             </IconButton>
                         </Stack>
                     </Box>
-                    <Stack spacing={1} sx={{ pointerEvents: 'none' }}>
+                    <Stack spacing={1} sx={{ pointerEvents: 'none', position: 'relative', zIndex: 4 }}>
                         <Stack direction="row" justifyContent="space-between" sx={{ pointerEvents: 'auto' }}>
                             <Typography variant="caption" onClick={(event) => event.stopPropagation()}>
                                 {formatTime(currentTime)}
@@ -1652,15 +3452,70 @@ export const AnimeVideoPlayer = ({
                                     size="small"
                                 />
                             </Box>
-                            <Stack direction="row" spacing={1} alignItems="center" sx={{ pointerEvents: 'auto' }}>
-                                <Typography variant="caption" onClick={(event) => event.stopPropagation()}>
-                                    {subtitleOffsetMs} ms
-                                </Typography>
+                            <Stack spacing={0.5} alignItems="center" sx={{ pointerEvents: 'auto' }}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    {(() => {
+                                        const previousCue = getSubtitleSyncTarget('previous');
+                                        return (
+                                            <IconButton
+                                                size="small"
+                                                disabled={!previousCue}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    syncSubtitleOffsetToCue(previousCue);
+                                                }}
+                                                color="inherit"
+                                                aria-label="Align to previous subtitle start"
+                                                title="Align to previous subtitle start"
+                                            >
+                                                <SkipPreviousIcon fontSize="small" />
+                                            </IconButton>
+                                        );
+                                    })()}
+                                    {(() => {
+                                        const nextCue = getSubtitleSyncTarget('next');
+                                        return (
+                                            <IconButton
+                                                size="small"
+                                                disabled={!nextCue}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    syncSubtitleOffsetToCue(nextCue);
+                                                }}
+                                                color="inherit"
+                                                aria-label="Align to next subtitle start"
+                                                title="Align to next subtitle start"
+                                            >
+                                                <SkipNextIcon fontSize="small" />
+                                            </IconButton>
+                                        );
+                                    })()}
+                                </Stack>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Typography
+                                        variant="caption"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            if (isMobile) {
+                                                return;
+                                            }
+                                            promptSubtitleOffset();
+                                        }}
+                                        onTouchEnd={(event) => {
+                                            if (!isMobile) {
+                                                return;
+                                            }
+                                            handleSubtitleOffsetTap(event);
+                                        }}
+                                        sx={{ cursor: isMobile ? 'default' : 'pointer' }}
+                                    >
+                                        {safeSubtitleOffsetMs} ms
+                                    </Typography>
                                 <IconButton
                                     size="small"
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        setSubtitleOffsetMs((prev) => prev - 100);
+                                        setSubtitleOffsetMs((prev) => (Number.isFinite(prev) ? prev : 0) - 100);
                                     }}
                                     color="inherit"
                                 >
@@ -1670,12 +3525,13 @@ export const AnimeVideoPlayer = ({
                                     size="small"
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        setSubtitleOffsetMs((prev) => prev + 100);
+                                        setSubtitleOffsetMs((prev) => (Number.isFinite(prev) ? prev : 0) + 100);
                                     }}
                                     color="inherit"
                                 >
                                     +
                                 </IconButton>
+                                </Stack>
                             </Stack>
                         </Stack>
                     </Stack>
@@ -1725,6 +3581,19 @@ export const AnimeVideoPlayer = ({
                         }}
                         sx={{ zIndex: isPageFullscreen || (fillHeight && isMobile) ? 1601 : undefined }}
                     >
+                        <MenuItem
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                markMenuInteraction();
+                                setSubtitleMenuAnchor(null);
+                                subtitleFileInputRef.current?.click();
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 32 }}>
+                                <UploadFileIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText primary="Import subtitle file" />
+                        </MenuItem>
                         <MenuItem
                             selected={selectedSubtitleIndex === null}
                             onClick={(event) => {
@@ -1843,6 +3712,7 @@ export const AnimeVideoPlayer = ({
                     </Menu>
                 </Box>
             )}
+                </Box>
             </Box>
         </Box>
     );
