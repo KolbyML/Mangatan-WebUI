@@ -1,4 +1,3 @@
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +12,7 @@ import {
     Stack,
     MenuItem,
     ListItemIcon,
+    Checkbox,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -63,19 +63,40 @@ type LNLibraryCardProps = {
     item: LibraryItem;
     onOpen: (id: string) => void;
     onDelete: (id: string, event: React.MouseEvent) => void;
+    isSelectionMode: boolean;
+    isSelected: boolean;
+    onToggleSelect: (id: string) => void;
+    onLongPress: (id: string) => void;
 };
 
-const LNLibraryCard = ({ item, onOpen, onDelete }: LNLibraryCardProps) => {
+const LNLibraryCard = ({ item, onOpen, onDelete, isSelectionMode, isSelected, onToggleSelect, onLongPress }: LNLibraryCardProps) => {
     const preventMobileContextMenu = MediaQuery.usePreventMobileContextMenu();
     const optionButtonRef = useRef<HTMLButtonElement>(null);
 
     const longPressBind = useLongPress(
         useCallback((e: any, { context }: any) => {
+            if (isSelectionMode) return;
             (context as () => void)?.();
-        }, [])
+        }, [isSelectionMode]),
+        {
+            onCancel: (e, { context }) => {
+                // Prevent click after long press
+            },
+            threshold: 500,
+            cancelOnMovement: true,
+        }
     );
 
     const isProcessing = item.isProcessing || false;
+
+    const handleCardClick = () => {
+        if (isProcessing) return;
+        if (isSelectionMode) {
+            onToggleSelect(item.id);
+        } else {
+            onOpen(item.id);
+        }
+    };
 
     return (
         <PopupState variant="popover" popupId={`ln-card-action-menu-${item.id}`}>
@@ -96,9 +117,19 @@ const LNLibraryCard = ({ item, onOpen, onDelete }: LNLibraryCardProps) => {
                     >
                         <Card sx={{ aspectRatio: MANGA_COVER_ASPECT_RATIO, display: 'flex' }}>
                             <CardActionArea
-                                {...longPressBind(() => popupState.open(optionButtonRef.current))}
-                                onClick={() => !isProcessing && onOpen(item.id)}
-                                onContextMenu={preventMobileContextMenu}
+                                {...longPressBind(() => {
+                                    if (!isSelectionMode) {
+                                        onLongPress(item.id);
+                                    }
+                                })}
+                                onClick={handleCardClick}
+                                onContextMenu={(e) => {
+                                    if (isSelectionMode) {
+                                        e.preventDefault();
+                                        return;
+                                    }
+                                    preventMobileContextMenu(e);
+                                }}
                                 sx={{
                                     position: 'relative',
                                     height: '100%',
@@ -165,7 +196,24 @@ const LNLibraryCard = ({ item, onOpen, onDelete }: LNLibraryCardProps) => {
                                                 right: (theme) => theme.spacing(1),
                                             }}
                                         >
-                                            {item.hasProgress ? (
+                                            {isSelectionMode ? (
+                                                <Checkbox
+                                                    checked={isSelected}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onToggleSelect(item.id);
+                                                    }}
+                                                    sx={{
+                                                        color: 'white',
+                                                        bgcolor: 'rgba(0,0,0,0.5)',
+                                                        borderRadius: 1,
+                                                        p: 0.5,
+                                                        '&.Mui-checked': {
+                                                            color: 'primary.main',
+                                                        },
+                                                    }}
+                                                />
+                                            ) : item.hasProgress ? (
                                                 <Box
                                                     sx={{
                                                         bgcolor: 'primary.main',
@@ -183,39 +231,41 @@ const LNLibraryCard = ({ item, onOpen, onDelete }: LNLibraryCardProps) => {
                                             ) : (
                                                 <Box />
                                             )}
-                                            <CustomTooltip title="Options">
-                                                <IconButton
-                                                    ref={optionButtonRef}
-                                                    {...MUIUtil.preventRippleProp(bindTrigger(popupState), {
-                                                        onClick: (event) => {
-                                                            event.stopPropagation();
-                                                            event.preventDefault();
-                                                            popupState.open();
-                                                        },
-                                                    })}
-                                                    className="ln-option-button"
-                                                    size="small"
-                                                    sx={{
-                                                        minWidth: 'unset',
-                                                        paddingX: 0,
-                                                        paddingY: '2.5px',
-                                                        backgroundColor: 'primary.main',
-                                                        color: 'common.white',
-                                                        '&:hover': { backgroundColor: 'primary.main' },
-                                                        visibility: popupState.isOpen ? 'visible' : 'hidden',
-                                                        pointerEvents: 'none',
-                                                        '@media not (pointer: fine)': {
-                                                            visibility: 'hidden',
-                                                            width: 0,
-                                                            height: 0,
-                                                            p: 0,
-                                                            m: 0,
-                                                        },
-                                                    }}
-                                                >
-                                                    <MoreVertIcon />
-                                                </IconButton>
-                                            </CustomTooltip>
+                                            {!isSelectionMode && (
+                                                <CustomTooltip title="Options">
+                                                    <IconButton
+                                                        ref={optionButtonRef}
+                                                        {...MUIUtil.preventRippleProp(bindTrigger(popupState), {
+                                                            onClick: (event) => {
+                                                                event.stopPropagation();
+                                                                event.preventDefault();
+                                                                popupState.open();
+                                                            },
+                                                        })}
+                                                        className="ln-option-button"
+                                                        size="small"
+                                                        sx={{
+                                                            minWidth: 'unset',
+                                                            paddingX: 0,
+                                                            paddingY: '2.5px',
+                                                            backgroundColor: 'primary.main',
+                                                            color: 'common.white',
+                                                            '&:hover': { backgroundColor: 'primary.main' },
+                                                            visibility: popupState.isOpen ? 'visible' : 'hidden',
+                                                            pointerEvents: 'none',
+                                                            '@media not (pointer: fine)': {
+                                                                visibility: 'hidden',
+                                                                width: 0,
+                                                                height: 0,
+                                                                p: 0,
+                                                                m: 0,
+                                                            },
+                                                        }}
+                                                    >
+                                                        <MoreVertIcon />
+                                                    </IconButton>
+                                                </CustomTooltip>
+                                            )}
                                         </Stack>
 
                                         <BottomGradient />
@@ -251,7 +301,7 @@ const LNLibraryCard = ({ item, onOpen, onDelete }: LNLibraryCardProps) => {
                         </Card>
                     </Box>
 
-                    {popupState.isOpen && (
+                    {popupState.isOpen && !isSelectionMode && (
                         <Menu {...bindMenu(popupState)}>
                             {(onClose) => (
                                 <MenuItem
@@ -278,6 +328,8 @@ export const LNLibrary: React.FC = () => {
     const navigate = useNavigate();
     const [library, setLibrary] = useState<LibraryItem[]>([]);
     const [isImporting, setIsImporting] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
 
     const { navBarWidth } = useNavBarContext();
     const { settings: { mangaGridItemWidth } } = useMetadataServerSettings();
@@ -323,20 +375,65 @@ export const LNLibrary: React.FC = () => {
         }
     };
 
+    // Normalize title for comparison
+    const normalizeTitle = (title: string): string => {
+        return title
+            .toLowerCase()
+            .replace(/\.epub$/i, '')
+            .replace(/[^\w\s]/g, '') // Remove special characters
+            .replace(/\s+/g, ' ')    // Normalize whitespace
+            .trim();
+    };
+
+    // Check if a book with similar title already exists in current library state
+    const findDuplicateInLibrary = useCallback((title: string, currentLibrary: LibraryItem[]): LibraryItem | undefined => {
+        const normalizedTitle = normalizeTitle(title);
+        return currentLibrary.find(item =>
+            !item.isProcessing && normalizeTitle(item.title) === normalizedTitle
+        );
+    }, []);
+
     const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.length) return;
 
         const files = Array.from(e.target.files);
         setIsImporting(true);
 
+        const skippedFiles: string[] = [];
+        const importedFiles: string[] = [];
+
+        // Keep track of current library state for duplicate checking
+        let currentLibrary = [...library];
+
         for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
             const file = files[fileIndex];
-            const bookId = `ln_${Date.now()}_${fileIndex}`;
+            const fileTitle = file.name.replace(/\.epub$/i, '');
 
+            // Check for duplicate by filename first
+            const existingBook = findDuplicateInLibrary(fileTitle, currentLibrary);
+
+            if (existingBook) {
+                const shouldReplace = window.confirm(
+                    `"${existingBook.title}" already exists in your library.\n\nDo you want to replace it?`
+                );
+
+                if (!shouldReplace) {
+                    skippedFiles.push(file.name);
+                    continue;
+                }
+
+                // Delete the existing book before importing
+                clearBookCache(existingBook.id);
+                await AppStorage.deleteLnData(existingBook.id);
+                currentLibrary = currentLibrary.filter(item => item.id !== existingBook.id);
+                setLibrary(prev => prev.filter(item => item.id !== existingBook.id));
+            }
+
+            const bookId = `ln_${Date.now()}_${fileIndex}`;
 
             const placeholder: LibraryItem = {
                 id: bookId,
-                title: file.name.replace('.epub', ''),
+                title: fileTitle,
                 author: '',
                 addedAt: Date.now(),
                 isProcessing: true,
@@ -346,10 +443,10 @@ export const LNLibrary: React.FC = () => {
                 chapterCount: 0,
             };
 
+            currentLibrary = [placeholder, ...currentLibrary];
             setLibrary((prev) => [placeholder, ...prev]);
 
             try {
-
                 const result = await parseEpub(file, bookId, (progress: ParseProgress) => {
                     setLibrary((prev) =>
                         prev.map((item) =>
@@ -365,6 +462,29 @@ export const LNLibrary: React.FC = () => {
                 });
 
                 if (result.success && result.metadata && result.content) {
+                    // Check again for duplicate using parsed metadata title
+                    const metadataTitle = result.metadata.title;
+                    const duplicateByMetadata = findDuplicateInLibrary(metadataTitle, currentLibrary.filter(i => i.id !== bookId));
+
+                    if (duplicateByMetadata) {
+                        const shouldReplace = window.confirm(
+                            `The book "${metadataTitle}" already exists in your library (detected from EPUB metadata).\n\nDo you want to replace it?`
+                        );
+
+                        if (!shouldReplace) {
+                            // Remove the placeholder and skip
+                            currentLibrary = currentLibrary.filter(item => item.id !== bookId);
+                            setLibrary(prev => prev.filter(item => item.id !== bookId));
+                            skippedFiles.push(file.name);
+                            continue;
+                        }
+
+                        // Delete the existing book
+                        clearBookCache(duplicateByMetadata.id);
+                        await AppStorage.deleteLnData(duplicateByMetadata.id);
+                        currentLibrary = currentLibrary.filter(item => item.id !== duplicateByMetadata.id);
+                        setLibrary(prev => prev.filter(item => item.id !== duplicateByMetadata.id));
+                    }
 
                     await Promise.all([
                         AppStorage.files.setItem(bookId, file),
@@ -372,23 +492,27 @@ export const LNLibrary: React.FC = () => {
                         AppStorage.lnContent.setItem(bookId, result.content),
                     ]);
 
+                    const finalItem: LibraryItem = {
+                        ...result.metadata,
+                        isProcessing: false,
+                        hasProgress: false,
+                    };
+
+                    // Update current library tracking
+                    currentLibrary = currentLibrary.map(item =>
+                        item.id === bookId ? finalItem : item
+                    );
 
                     setLibrary((prev) =>
                         prev.map((item) =>
-                            item.id === bookId
-                                ? {
-                                    ...result.metadata!,
-                                    isProcessing: false,
-                                    hasProgress: false,
-                                }
-                                : item
+                            item.id === bookId ? finalItem : item
                         )
                     );
 
+                    importedFiles.push(result.metadata.title);
                     console.log(`[Import] Complete: ${result.metadata.title}`);
                     console.log(`[Import] Stats: ${result.metadata.chapterCount} chapters, ${result.metadata.stats.totalLength} chars`);
                 } else {
-
                     setLibrary((prev) =>
                         prev.map((item) =>
                             item.id === bookId
@@ -420,23 +544,76 @@ export const LNLibrary: React.FC = () => {
             }
         }
 
+        // Show summary if multiple files were processed
+        if (files.length > 1) {
+            const summary = [];
+            if (importedFiles.length > 0) {
+                summary.push(`Imported: ${importedFiles.length} book(s)`);
+            }
+            if (skippedFiles.length > 0) {
+                summary.push(`Skipped: ${skippedFiles.length}`);
+            }
+            if (summary.length > 0) {
+                console.log(`[Import Summary] ${summary.join(', ')}`);
+            }
+        }
+
         setIsImporting(false);
         e.target.value = '';
-    }, []);
+    }, [library, findDuplicateInLibrary]);
 
     const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
 
         if (!window.confirm('Delete this book?')) return;
 
-
         clearBookCache(id);
-
-
         setLibrary((prev) => prev.filter((item) => item.id !== id));
-
-
         await AppStorage.deleteLnData(id);
+    }, []);
+
+    const handleMultiDelete = useCallback(async () => {
+        if (selectedIds.size === 0) return;
+
+        const count = selectedIds.size;
+        if (!window.confirm(`Delete ${count} selected book${count > 1 ? 's' : ''}?`)) return;
+
+        // Delete all selected books
+        for (const id of selectedIds) {
+            clearBookCache(id);
+            await AppStorage.deleteLnData(id);
+        }
+
+        setLibrary((prev) => prev.filter((item) => !selectedIds.has(item.id)));
+        setSelectedIds(new Set());
+        setIsSelectionMode(false);
+    }, [selectedIds]);
+
+    const handleToggleSelect = useCallback((id: string) => {
+        setSelectedIds((prev) => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    }, []);
+
+    const handleSelectAll = useCallback(() => {
+        const allIds = library.filter(item => !item.isProcessing).map(item => item.id);
+        setSelectedIds(new Set(allIds));
+    }, [library]);
+
+    const handleCancelSelection = useCallback(() => {
+        setSelectedIds(new Set());
+        setIsSelectionMode(false);
+    }, []);
+
+    const handleLongPress = useCallback((id: string) => {
+        setIsSelectionMode(true);
+        setSelectedIds(new Set([id]));
     }, []);
 
     const handleOpen = useCallback((id: string) => {
@@ -447,18 +624,52 @@ export const LNLibrary: React.FC = () => {
 
     const appAction = useMemo(
         () => (
-            <Button
-                color="inherit"
-                component="label"
-                startIcon={<UploadFileIcon />}
-                disabled={isImporting}
-                sx={{ textTransform: 'none' }}
-            >
-                {isImporting ? 'Importing...' : 'Import EPUB'}
-                <input type="file" accept=".epub" multiple hidden onChange={handleImport} />
-            </Button>
+            <Stack direction="row" spacing={1} alignItems="center">
+                {isSelectionMode ? (
+                    <>
+                        <Typography variant="body2" sx={{ color: 'inherit' }}>
+                            {selectedIds.size} selected
+                        </Typography>
+                        <Button
+                            color="inherit"
+                            onClick={handleSelectAll}
+                            size="small"
+                            sx={{ textTransform: 'none', minWidth: 'auto' }}
+                        >
+                            All
+                        </Button>
+                        <IconButton
+                            color="inherit"
+                            onClick={handleMultiDelete}
+                            disabled={selectedIds.size === 0}
+                            size="small"
+                        >
+                            <DeleteIcon />
+                        </IconButton>
+                        <Button
+                            color="inherit"
+                            onClick={handleCancelSelection}
+                            size="small"
+                            sx={{ textTransform: 'none', minWidth: 'auto' }}
+                        >
+                            Cancel
+                        </Button>
+                    </>
+                ) : (
+                    <Button
+                        color="inherit"
+                        component="label"
+                        startIcon={<UploadFileIcon />}
+                        disabled={isImporting}
+                        sx={{ textTransform: 'none' }}
+                    >
+                        {isImporting ? 'Importing...' : 'Import EPUB'}
+                        <input type="file" accept=".epub" multiple hidden onChange={handleImport} />
+                    </Button>
+                )}
+            </Stack>
         ),
-        [handleImport, isImporting]
+        [handleImport, isImporting, isSelectionMode, selectedIds.size, handleMultiDelete, handleSelectAll, handleCancelSelection]
     );
 
     useAppAction(appAction, [appAction]);
@@ -481,7 +692,15 @@ export const LNLibrary: React.FC = () => {
             >
                 {library.map((item) => (
                     <Box key={item.id}>
-                        <LNLibraryCard item={item} onOpen={handleOpen} onDelete={handleDelete} />
+                        <LNLibraryCard
+                            item={item}
+                            onOpen={handleOpen}
+                            onDelete={handleDelete}
+                            isSelectionMode={isSelectionMode}
+                            isSelected={selectedIds.has(item.id)}
+                            onToggleSelect={handleToggleSelect}
+                            onLongPress={handleLongPress}
+                        />
                     </Box>
                 ))}
             </Box>
