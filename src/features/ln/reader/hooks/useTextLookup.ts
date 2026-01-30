@@ -29,48 +29,54 @@ export function useTextLookup() {
 
         const node = range.startContainer;
         let offset = range.startOffset;
+        const textLen = node.textContent?.length || 0;
 
-        try {
-            const charRange = document.createRange();
-            const textLen = node.textContent?.length || 0;
+        if (textLen === 0) return null;
 
-            const checkOffset = offset >= textLen ? Math.max(0, textLen - 1) : offset;
-            charRange.setStart(node, checkOffset);
-            charRange.setEnd(node, checkOffset + 1);
+        const candidates: number[] = [];
 
-            const rect = charRange.getBoundingClientRect();
+        if (offset > 0) candidates.push(offset - 1);
+        if (offset < textLen) candidates.push(offset);
+        if (offset + 1 < textLen) candidates.push(offset + 1);
 
-            const marginX = 15;
-            const marginY = 25;
+        if (candidates.length === 0) candidates.push(0);
 
-            const isInside = (
-                x >= rect.left - marginX &&
-                x <= rect.right + marginX &&
-                y >= rect.top - marginY &&
-                y <= rect.bottom + marginY
-            );
+        let bestOffset: number | null = null;
+        let bestDistance = Infinity;
 
-            if (!isInside) return null;
-        } catch (err) {
-        }
+        const marginX = 35;
+        const marginY = 45;
 
-        if (offset > 0) {
+        for (const candidateOffset of candidates) {
             try {
-                const checkRange = document.createRange();
-                checkRange.setStart(node, offset - 1);
-                checkRange.setEnd(node, offset);
-                const rect = checkRange.getBoundingClientRect();
+                const charRange = document.createRange();
+                charRange.setStart(node, candidateOffset);
+                charRange.setEnd(node, candidateOffset + 1);
+                const rect = charRange.getBoundingClientRect();
 
-                const margin = 15;
-                if (x >= rect.left - margin && x <= rect.right + margin &&
-                    y >= rect.top - margin && y <= rect.bottom + margin) {
-                    offset -= 1;
+                const insideX = x >= rect.left - marginX && x <= rect.right + marginX;
+                const insideY = y >= rect.top - marginY && y <= rect.bottom + marginY;
+
+                if (!insideX || !insideY) continue;
+
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const distance = Math.sqrt(
+                    Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+                );
+
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestOffset = candidateOffset;
                 }
-            } catch (e) {
+            } catch (err) {
+                // Ignore
             }
         }
 
-        return { node, offset };
+        if (bestOffset === null) return null;
+
+        return { node, offset: bestOffset };
     }, []);
 
     const getSentenceContext = useCallback((node: Node, offset: number): { sentence: string; byteOffset: number } => {
