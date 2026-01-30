@@ -19,8 +19,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import ReplayIcon from '@mui/icons-material/Replay';
-import ForwardIcon from '@mui/icons-material/Forward';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VideoSettingsIcon from '@mui/icons-material/OndemandVideo';
@@ -35,6 +35,7 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -504,6 +505,7 @@ export const AnimeVideoPlayer = ({
     }, []);
     const isLandscape = useMediaQuery('(orientation: landscape)');
     const shouldShowFullscreen = showFullscreenButton ?? isDesktop;
+    const shouldShowVolume = isDesktopPlatform;
     const { wasPopupClosedRecently, settings, openSettings, showAlert } = useOCR();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [isPaused, setIsPaused] = useState(true);
@@ -517,6 +519,9 @@ export const AnimeVideoPlayer = ({
     const [buffered, setBuffered] = useState(0);
     const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
     const [playbackRate, setPlaybackRate] = useState(1);
+    const [volume, setVolume] = useLocalStorage<number>('anime-player-volume', 1);
+    const safeVolume = Number.isFinite(volume) ? Math.min(Math.max(volume, 0), 1) : 1;
+    const volumePercent = Math.round(safeVolume * 100);
     const [videoMenuAnchor, setVideoMenuAnchor] = useState<null | HTMLElement>(null);
     const [subtitleMenuAnchor, setSubtitleMenuAnchor] = useState<null | HTMLElement>(null);
     const [speedMenuAnchor, setSpeedMenuAnchor] = useState<null | HTMLElement>(null);
@@ -805,6 +810,31 @@ export const AnimeVideoPlayer = ({
         }
         applyPlaybackRate(savedPlaybackRate);
     }, [savedPlaybackRate]);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+        if (Math.abs(video.volume - safeVolume) > 0.01) {
+            video.volume = safeVolume;
+        }
+    }, [safeVolume, videoSrc]);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return () => {};
+        }
+        const onVolumeChange = () => {
+            const nextVolume = Math.min(Math.max(video.volume, 0), 1);
+            setVolume((prev) => (Math.abs(prev - nextVolume) < 0.01 ? prev : nextVolume));
+        };
+        video.addEventListener('volumechange', onVolumeChange);
+        return () => {
+            video.removeEventListener('volumechange', onVolumeChange);
+        };
+    }, [setVolume, videoSrc]);
 
     const markMenuInteraction = useCallback(() => {
         menuInteractionRef.current = Date.now();
@@ -2597,6 +2627,20 @@ export const AnimeVideoPlayer = ({
         setCurrentTime(nextTime);
     };
 
+    const handleVolumeChange = (event: Event, value: number | number[]) => {
+        event.stopPropagation();
+        const nextValue = Array.isArray(value) ? value[0] : value;
+        if (typeof nextValue !== 'number') {
+            return;
+        }
+        const nextVolume = Math.min(Math.max(nextValue / 100, 0), 1);
+        setVolume(nextVolume);
+        const video = videoRef.current;
+        if (video) {
+            video.volume = nextVolume;
+        }
+    };
+
     const formatTime = (value: number) => {
         if (!Number.isFinite(value) || value <= 0) {
             return '0:00';
@@ -3379,7 +3423,7 @@ export const AnimeVideoPlayer = ({
                                 color="inherit"
                                 sx={{ pointerEvents: 'auto' }}
                             >
-                                <ReplayIcon />
+                                <RotateLeftIcon />
                             </IconButton>
                             <IconButton
                                 onClick={(event) => {
@@ -3405,7 +3449,7 @@ export const AnimeVideoPlayer = ({
                                 color="inherit"
                                 sx={{ pointerEvents: 'auto' }}
                             >
-                                <ForwardIcon />
+                                <RotateRightIcon />
                             </IconButton>
                         </Stack>
                     </Box>
@@ -3451,6 +3495,52 @@ export const AnimeVideoPlayer = ({
                                     aria-label="Video position"
                                     size="small"
                                 />
+                                {shouldShowVolume && (
+                                    <Box
+                                        sx={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            bottom: -30,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            px: 0.75,
+                                            py: 0.5,
+                                            borderRadius: 999,
+                                            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                                            backdropFilter: 'blur(6px)',
+                                            width: 28,
+                                            overflow: 'hidden',
+                                            opacity: 0.7,
+                                            transition: 'width 200ms ease, opacity 200ms ease',
+                                            '&:hover, &:focus-within': {
+                                                width: 160,
+                                                opacity: 1,
+                                            },
+                                            '&:hover .volume-slider, &:focus-within .volume-slider': {
+                                                opacity: 1,
+                                            },
+                                        }}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                    >
+                                        <VolumeUpIcon fontSize="small" />
+                                        <Slider
+                                            className="volume-slider"
+                                            value={volumePercent}
+                                            onChange={handleVolumeChange}
+                                            aria-label="Volume"
+                                            size="small"
+                                            min={0}
+                                            max={100}
+                                            sx={{
+                                                width: 110,
+                                                opacity: 0,
+                                                transition: 'opacity 150ms ease',
+                                            }}
+                                        />
+                                    </Box>
+                                )}
                             </Box>
                             <Stack spacing={0.5} alignItems="center" sx={{ pointerEvents: 'auto' }}>
                                 <Stack direction="row" spacing={1} alignItems="center">
