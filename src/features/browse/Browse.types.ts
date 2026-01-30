@@ -11,6 +11,7 @@ import { SourceIdInfo } from '@/features/source/Source.types.ts';
 export type MetadataBrowseSettings = {
     hideLibraryEntries: boolean;
     extensionLanguages: string[];
+    animeExtensionLanguages: string[];
     sourceLanguages: string[];
     animeSourceLanguages: string[];
     showNsfw: boolean;

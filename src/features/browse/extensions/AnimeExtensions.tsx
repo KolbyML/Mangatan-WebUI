@@ -67,10 +67,10 @@ export function AnimeExtensions({ tabsMenuHeight }: { tabsMenuHeight: number }) 
     const { t } = useTranslation();
 
     const {
-        settings: { extensionLanguages: shownLangs, showNsfw },
+        settings: { animeExtensionLanguages: shownLangs, showNsfw },
     } = useMetadataServerSettings();
     const updateMetadataServerSettings = createUpdateMetadataServerSettings<
-        keyof Pick<MetadataBrowseSettings, 'extensionLanguages'>
+        keyof Pick<MetadataBrowseSettings, 'animeExtensionLanguages'>
     >((e) => makeToast(t('global.error.label.failed_to_save_changes'), 'error', getErrorMessage(e)));
 
     const [query] = useQueryParam(SearchParam.QUERY, StringParam);
@@ -203,7 +203,8 @@ export function AnimeExtensions({ tabsMenuHeight }: { tabsMenuHeight: number }) 
 
             <LanguageSelect
                 selectedLanguages={shownLangs}
-                setSelectedLanguages={(languages: string[]) => updateMetadataServerSettings('extensionLanguages', languages)}
+                setSelectedLanguages={(languages: string[]) =>
+                    updateMetadataServerSettings('animeExtensionLanguages', languages)}
                 languages={getLanguagesFromExtensions(normalizedExtensions as TExtension[])}
             />
         </>,

@@ -24,6 +24,7 @@ export const convertSettingsToMetadata = (
     customThemes: JSON.stringify(settings.customThemes),
     migrateSortSettings: JSON.stringify(settings.migrateSortSettings),
     extensionLanguages: JSON.stringify(settings.extensionLanguages),
+    animeExtensionLanguages: JSON.stringify(settings.animeExtensionLanguages),
     sourceLanguages: JSON.stringify(settings.sourceLanguages),
     animeSourceLanguages: JSON.stringify(settings.animeSourceLanguages),
 });

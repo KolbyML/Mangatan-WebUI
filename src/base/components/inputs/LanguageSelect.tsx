@@ -6,7 +6,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '@mui/material/Button';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -35,6 +35,12 @@ export function LanguageSelect(props: IProps) {
     const { selectedLanguages, setSelectedLanguages, languages } = props;
     const [tmpSelectedLanguages, setTmpSelectedLanguages] = useState(toUniqueLanguageCodes(selectedLanguages));
     const [open, setOpen] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (!open) {
+            setTmpSelectedLanguages(toUniqueLanguageCodes(selectedLanguages));
+        }
+    }, [open, selectedLanguages]);
 
     const languagesSortedBySelectState = useMemo(
         () =>
