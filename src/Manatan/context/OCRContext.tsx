@@ -132,7 +132,7 @@ export const OCRProvider = ({ children }: { children: ReactNode }) => {
             isOpen: true, 
             onConfirm: undefined, 
             onCancel: undefined,
-            ...({ confirmText: undefined, cancelText: undefined } as any),
+            ...({ confirmText: undefined, cancelText: undefined, extraAction: undefined } as any),
             ...config 
         }));
     }, []);

@@ -53,6 +53,7 @@ export interface Settings {
     ankiModel?: string;
     ankiFieldMap?: Record<string, string>;
     ankiCheckDuplicates?: boolean;
+    skipAnkiUpdateConfirm: boolean;
     // Light Novel Settings
     lnFontSize: number;
     lnLineHeight: number;
@@ -138,6 +139,11 @@ export interface DialogState {
     message: React.ReactNode;
     onConfirm?: () => void;
     onCancel?: () => void;
+    extraAction?: {
+        label: string;
+        onClick: () => void;
+        closeOnClick?: boolean;
+    };
 }
 
 // --- ENVIRONMENT DETECTION ---
@@ -194,6 +200,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ankiModel: '',
     ankiFieldMap: {},
     ankiCheckDuplicates: true,
+    skipAnkiUpdateConfirm: false,
     // LN Defaults
     lnFontSize: 16,
     lnLineHeight: 1.6,

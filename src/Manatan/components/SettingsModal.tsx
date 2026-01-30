@@ -606,6 +606,25 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                         </label>
                                     </div>
 
+                                    {!localSettings.enableYomitan && (
+                                        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <label style={{ ...checkboxLabelStyle, marginBottom: '0' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={localSettings.skipAnkiUpdateConfirm ?? false}
+                                                    onChange={(e) => handleChange('skipAnkiUpdateConfirm', e.target.checked)}
+                                                    style={checkboxInputStyle}
+                                                />
+                                                <div>
+                                                    Skip Update Anki Card confirmation
+                                                    <div style={{ opacity: 0.5, fontSize: '0.9em' }}>
+                                                        Updates the last card immediately when you use the right-click action.
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    )}
+
                                     {localSettings.enableYomitan && (
                                         <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
                                             <label style={{ ...checkboxLabelStyle, marginBottom: '0' }}>

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useLayoutEffect, useEffect, memo } from 'react';
+import React, { useCallback, useRef, useState, useLayoutEffect, useEffect, memo } from 'react';
 import { COLOR_THEMES, OcrBlock } from '@/Manatan/types';
 import { useOCR } from '@/Manatan/context/OCRContext';
 import { cleanPunctuation, lookupYomitan } from '@/Manatan/utils/api';
@@ -45,13 +45,14 @@ export const TextBox: React.FC<{
     parentVisible?: boolean; 
 }> = memo(({ block, index, imgSrc, spreadData, containerWidth, containerHeight, onUpdate, onMerge, onDelete, parentVisible = true }) => {
     const { 
-        settings, 
-        mergeAnchor, 
-        setMergeAnchor, 
+        settings,
+        setSettings,
+        mergeAnchor,
+        setMergeAnchor,
         setDictPopup,
         dictPopup,
         wasPopupClosedRecently,
-        showConfirm,
+        showDialog,
         showProgress,
         closeDialog,
     } = useOCR();
@@ -60,11 +61,36 @@ export const TextBox: React.FC<{
     const [isLocalHover, setIsLocalHover] = useState(false); 
     const [fontSize, setFontSize] = useState(16);
     const [showCropper, setShowCropper] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
 
     const justActivated = useRef(false);
     const dictPopupRef = useRef(dictPopup.visible);
     useEffect(() => { dictPopupRef.current = dictPopup.visible; }, [dictPopup.visible]);
+
+    const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+    useEffect(() => {
+        if (!contextMenu) {
+            return;
+        }
+        const handleClose = () => setContextMenu(null);
+        const handleKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setContextMenu(null);
+            }
+        };
+        window.addEventListener('mousedown', handleClose);
+        window.addEventListener('resize', handleClose);
+        window.addEventListener('scroll', handleClose, true);
+        window.addEventListener('keydown', handleKey);
+        return () => {
+            window.removeEventListener('mousedown', handleClose);
+            window.removeEventListener('resize', handleClose);
+            window.removeEventListener('scroll', handleClose, true);
+            window.removeEventListener('keydown', handleKey);
+        };
+    }, [contextMenu]);
 
     const isVertical =
         block.forcedOrientation === 'vertical' ||
@@ -208,13 +234,147 @@ export const TextBox: React.FC<{
         }
     }, [isActive, isEditing, settings.mobileMode, index, onUpdate, displayContent]);
 
-    const getTargetField = (type: 'Image' | 'Sentence') => {
+    const getTargetField = useCallback((type: 'Image' | 'Sentence') => {
         if (settings.ankiFieldMap) {
             const mapped = Object.keys(settings.ankiFieldMap).find(key => settings.ankiFieldMap![key] === type);
             if (mapped) return mapped;
         }
         return '';
-    };
+    }, [settings.ankiFieldMap]);
+
+    const getCleanSentence = useCallback(() => {
+        let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
+        content = content.replace(/[\u0000-\u001f\u007f]/g, '');
+        content = content.replace(/[\u200B\u000b\f\r\n]+/g, '');
+        return content;
+    }, [block.text, settings.addSpaceOnMerge]);
+
+    const copyTextToClipboard = useCallback(async (text: string) => {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                makeToast('Copied to clipboard.', { variant: 'success', autoHideDuration: 1500 });
+                return;
+            }
+        } catch (err) {
+            console.warn('Clipboard write failed', err);
+        }
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            makeToast('Copied to clipboard.', { variant: 'success', autoHideDuration: 1500 });
+        } catch (err) {
+            console.warn('Clipboard fallback failed', err);
+            makeToast('Could not copy to clipboard.', 'error');
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }, []);
+
+    const handleCopySentence = useCallback(async () => {
+        const content = getCleanSentence();
+        if (!content) {
+            makeToast('Nothing to copy.', 'warning');
+            return;
+        }
+        await copyTextToClipboard(content);
+        closeContextMenu();
+    }, [closeContextMenu, copyTextToClipboard, getCleanSentence]);
+
+    const handleCopyScreenshot = useCallback(async () => {
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = imgSrc;
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error('Image load failed'));
+            });
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('Canvas unavailable');
+            }
+            ctx.drawImage(img, 0, 0, img.width, img.height);
+            const blob = await new Promise<Blob>((resolve, reject) => {
+                canvas.toBlob((result) => {
+                    if (result) {
+                        resolve(result);
+                    } else {
+                        reject(new Error('Image conversion failed'));
+                    }
+                }, 'image/png');
+            });
+            const ClipboardItemCtor = (window as any).ClipboardItem;
+            if (!navigator.clipboard?.write || !ClipboardItemCtor) {
+                throw new Error('Clipboard image copy not supported');
+            }
+            await navigator.clipboard.write([new ClipboardItemCtor({ 'image/png': blob })]);
+            makeToast('Screenshot copied to clipboard.', { variant: 'success', autoHideDuration: 1500 });
+        } catch (err) {
+            console.warn('Copy screenshot failed', err);
+            makeToast('Could not copy screenshot.', 'error');
+        } finally {
+            closeContextMenu();
+        }
+    }, [closeContextMenu, imgSrc]);
+
+    const updateAnkiCard = useCallback(async (croppedImage?: string) => {
+        try {
+            showProgress('Updating Anki card...');
+
+            const imgField = getTargetField('Image');
+            const sentField = getTargetField('Sentence');
+
+            await updateLastCard(
+                settings.ankiConnectUrl || 'http://127.0.0.1:8765',
+                croppedImage ? undefined : imgSrc,
+                getCleanSentence(),
+                imgField || '',
+                sentField || '',
+                settings.ankiImageQuality || 0.92,
+                croppedImage,
+            );
+
+            closeDialog();
+            makeToast('Anki card updated successfully!', { variant: 'success', autoHideDuration: 1500 });
+        } catch (err: any) {
+            closeDialog();
+            makeToast('Failed to update Anki card', 'error', err.message);
+        }
+    }, [closeDialog, getCleanSentence, getTargetField, imgSrc, settings.ankiConnectUrl, settings.ankiImageQuality, showProgress]);
+
+    const confirmAnkiUpdate = useCallback((action: () => void) => {
+        if (settings.skipAnkiUpdateConfirm) {
+            action();
+            return;
+        }
+        showDialog({
+            type: 'confirm',
+            title: 'Update Anki Card?',
+            message: 'This will overwrite the image and text of the last added card in Anki.',
+            confirmText: 'Update',
+            cancelText: 'Cancel',
+            extraAction: settings.enableYomitan
+                ? undefined
+                : {
+                    label: "Don't show again",
+                    onClick: () => {
+                        setSettings((prev) => ({ ...prev, skipAnkiUpdateConfirm: true }));
+                        action();
+                    },
+                },
+            onConfirm: action,
+        });
+    }, [setSettings, settings.enableYomitan, settings.skipAnkiUpdateConfirm, showDialog]);
 
     const handleAnkiRequest = async (e: React.MouseEvent) => {
         e.preventDefault();
@@ -225,75 +385,20 @@ export const TextBox: React.FC<{
             return;
         }
 
-        let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
-        content = content.replace(/[\u200B\n\r]+/g, '');
-
         if (settings.ankiEnableCropper) {
             setShowCropper(true);
         } else {
-            showConfirm(
-                'Update Anki Card?',
-                'This will overwrite the image and text of the last added card in Anki.',
-                async () => {
-                    try {
-                        showProgress('Updating Anki card...');
-                        
-                        const imgField = getTargetField('Image');
-                        const sentField = getTargetField('Sentence');
-
-                        await updateLastCard(
-                            settings.ankiConnectUrl || 'http://127.0.0.1:8765',
-                            imgSrc,
-                            content,
-                            imgField || '',
-                            sentField || '',
-                            settings.ankiImageQuality || 0.92
-                        );
-                        
-                        closeDialog();
-                        makeToast('Anki card updated successfully!', { variant: 'success', autoHideDuration: 1500 });
-                    } catch (err: any) {
-                        closeDialog();
-                        makeToast('Failed to update Anki card', 'error', err.message);
-                    }
-                }
-            );
+            confirmAnkiUpdate(() => {
+                void updateAnkiCard();
+            });
         }
     };
 
     const handleCropperComplete = async (croppedImage: string) => {
         setShowCropper(false);
-        let content = cleanPunctuation(block.text, settings.addSpaceOnMerge);
-        content = content.replace(/[\u200B\n\r]+/g, '');
-
-        showConfirm(
-            'Update Anki Card?',
-            'This will overwrite the image and text of the last added card in Anki.',
-            async () => {
-                try {
-                    showProgress('Updating Anki card...');
-                    
-                    const imgField = getTargetField('Image');
-                    const sentField = getTargetField('Sentence');
-
-                    await updateLastCard(
-                        settings.ankiConnectUrl || 'http://127.0.0.1:8765',
-                        undefined,
-                        content,
-                        imgField || '',
-                        sentField || '',
-                        settings.ankiImageQuality || 0.92,
-                        croppedImage
-                    );
-
-                    closeDialog();
-                    makeToast('Anki card updated successfully!', { variant: 'success', autoHideDuration: 1500 });
-                } catch (err: any) {
-                    closeDialog();
-                    makeToast('Failed to update Anki card', 'error', err.message);
-                }
-            }
-        );
+        confirmAnkiUpdate(() => {
+            void updateAnkiCard(croppedImage);
+        });
     };
 
     const handleTouchStart = (e: React.TouchEvent) => {
@@ -440,6 +545,12 @@ export const TextBox: React.FC<{
     const classes = ['gemini-ocr-text-box', isVertical ? 'vertical' : '', isEditing ? 'editing' : '', isMergedTarget ? 'merge-target' : '', isActive ? 'mobile-active' : '', isLookingUp ? 'active-lookup' : ''].filter(Boolean).join(' ');
 
     const shouldBeVisible = !settings.soloHoverMode || parentVisible || isLocalHover || isEditing || isActive || isLookingUp;
+    const menuPosition = contextMenu && typeof window !== 'undefined'
+        ? {
+            x: Math.max(8, Math.min(contextMenu.x, window.innerWidth - 220)),
+            y: Math.max(8, Math.min(contextMenu.y, window.innerHeight - 96)),
+        }
+        : null;
 
     return (
         <>
@@ -453,7 +564,15 @@ export const TextBox: React.FC<{
                 suppressContentEditableWarning
                 onDoubleClick={() => setIsEditing(true)}
                 onContextMenu={(e) => {
-                    if (settings.ankiConnectEnabled && !e.shiftKey) handleAnkiRequest(e);
+                    if (settings.enableYomitan) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({ x: e.clientX, y: e.clientY });
+                        return;
+                    }
+                    if (settings.ankiConnectEnabled && !e.shiftKey) {
+                        handleAnkiRequest(e);
+                    }
                 }}
                 onCopy={handleCopy}
                 
@@ -504,6 +623,64 @@ export const TextBox: React.FC<{
             >
                 {displayContent}
             </div>
+            {menuPosition && createPortal(
+                <div
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                    style={{
+                        position: 'fixed',
+                        top: menuPosition.y,
+                        left: menuPosition.x,
+                        zIndex: 2147483647,
+                        background: '#1a1d21',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.45)',
+                        padding: '6px',
+                        minWidth: '200px',
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            void handleCopyScreenshot();
+                        }}
+                        style={{
+                            width: '100%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#fff',
+                            textAlign: 'left',
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Copy screenshot to clipboard
+                    </button>
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            void handleCopySentence();
+                        }}
+                        style={{
+                            width: '100%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#fff',
+                            textAlign: 'left',
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Copy sentence to clipboard
+                    </button>
+                </div>,
+                document.body
+            )}
             {showCropper && createPortal(
                 <CropperModal
                     imageSrc={imgSrc}
