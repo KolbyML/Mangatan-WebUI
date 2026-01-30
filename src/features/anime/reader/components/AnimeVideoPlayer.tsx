@@ -389,6 +389,17 @@ const getLowestFrequency = (entry: DictionaryResult): string => {
     return Math.min(...numbers).toString();
 };
 
+const getTermTagLabel = (tag: unknown): string => {
+    if (typeof tag === 'string') {
+        return tag;
+    }
+    if (tag && typeof tag === 'object') {
+        const record = tag as { name?: string; label?: string; tag?: string; value?: string };
+        return record.name || record.label || record.tag || record.value || '';
+    }
+    return '';
+};
+
 const buildDefinitionHtml = (entry: DictionaryResult): string => {
     const styleToString = (style: Record<string, any>): string => {
         if (!style) {
@@ -3428,20 +3439,26 @@ export const AnimeVideoPlayer = ({
                                                     {entry.reading}
                                                 </Typography>
                                             )}
-                                            {entry.termTags?.map((tag, tagIndex) => (
-                                                <Box
-                                                    key={`${entry.headword}-tag-${tagIndex}`}
-                                                    sx={{
-                                                        px: 0.5,
-                                                        py: 0.1,
-                                                        borderRadius: 0.5,
-                                                        fontSize: '0.7rem',
-                                                        backgroundColor: '#666',
-                                                    }}
-                                                >
-                                                    {String(tag)}
-                                                </Box>
-                                            ))}
+                                            {entry.termTags?.map((tag, tagIndex) => {
+                                                const label = getTermTagLabel(tag);
+                                                if (!label) {
+                                                    return null;
+                                                }
+                                                return (
+                                                    <Box
+                                                        key={`${entry.headword}-tag-${tagIndex}`}
+                                                        sx={{
+                                                            px: 0.5,
+                                                            py: 0.1,
+                                                            borderRadius: 0.5,
+                                                            fontSize: '0.7rem',
+                                                            backgroundColor: '#666',
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </Box>
+                                                );
+                                            })}
                                         </Box>
                                         {settings.ankiConnectEnabled && (
                                             <Stack direction="row" spacing={1} alignItems="center">

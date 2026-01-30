@@ -87,7 +87,7 @@ export interface DictionaryResult {
     forms?: { headword: string; reading: string }[];
     source?: number;
     matchLen?: number; 
-    termTags?: string[];
+    termTags?: Array<string | { name?: string; label?: string; tag?: string; value?: string }>;
     frequencies?: any[];
 
 }
