@@ -39,9 +39,13 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHotkeys as useHotkeysHook, useHotkeysContext } from 'react-hotkeys-hook';
 import Hls from 'hls.js';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { useLocalStorage } from '@/base/hooks/useStorage.tsx';
+import { Hotkey } from '@/features/reader/hotkeys/settings/components/Hotkey.tsx';
+import { HOTKEY_SCOPES } from '@/features/hotkeys/Hotkeys.constants.ts';
+import { HotkeyScope } from '@/features/hotkeys/Hotkeys.types.ts';
 import { useOCR } from '@/Manatan/context/OCRContext.tsx';
 import ManatanLogo from '@/Manatan/assets/manatan_logo.png';
 import { lookupYomitan } from '@/Manatan/utils/api.ts';
@@ -50,6 +54,13 @@ import { StructuredContent } from '@/Manatan/components/YomitanPopup.tsx';
 import { makeToast } from '@/base/utils/Toast.ts';
 import { MediaQuery } from '@/base/utils/MediaQuery.tsx';
 import { addNote, findNotes, guiBrowse } from '@/Manatan/utils/anki.ts';
+import {
+    AnimeHotkey,
+    ANIME_HOTKEYS,
+    ANIME_HOTKEY_DESCRIPTIONS,
+    ANIME_HOTKEY_LABELS,
+    DEFAULT_ANIME_HOTKEYS,
+} from '@/Manatan/hotkeys/AnimeHotkeys.ts';
 
 type SubtitleTrack = {
     url: string;
@@ -506,7 +517,17 @@ export const AnimeVideoPlayer = ({
     const isLandscape = useMediaQuery('(orientation: landscape)');
     const shouldShowFullscreen = showFullscreenButton ?? isDesktop;
     const shouldShowVolume = isDesktopPlatform;
+    const infoButtonLabel = isDesktopPlatform ? 'Show keyboard shortcuts' : 'Show tap zone';
     const { wasPopupClosedRecently, settings, openSettings, showAlert } = useOCR();
+    const { enableScope, disableScope } = useHotkeysContext();
+    const animeHotkeys = useMemo(() => ({
+        ...DEFAULT_ANIME_HOTKEYS,
+        ...(settings.animeHotkeys ?? {}),
+    }), [settings.animeHotkeys]);
+    const hotkeyScopeOptions = useMemo(() => ({
+        preventDefault: true,
+        ...HOTKEY_SCOPES[HotkeyScope.ANIME],
+    }), []);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [isPaused, setIsPaused] = useState(true);
     const [isVideoLoading, setIsVideoLoading] = useState(true);
@@ -569,6 +590,7 @@ export const AnimeVideoPlayer = ({
     } | null>(null);
     const [ankiActionPending, setAnkiActionPending] = useState<Record<string, boolean>>({});
     const [showTapZoneHint, setShowTapZoneHint] = useState(false);
+    const [showShortcutHint, setShowShortcutHint] = useState(false);
     const [isBrave, setIsBrave] = useState(false);
     const [isBraveLinux, setIsBraveLinux] = useState(false);
     const [showBraveProxyToggle, setShowBraveProxyToggle] = useState(false);
@@ -1182,6 +1204,7 @@ export const AnimeVideoPlayer = ({
     ]);
 
     const tapZoneHintTimeoutRef = useRef<number | null>(null);
+    const shortcutHintTimeoutRef = useRef<number | null>(null);
     const showTapZoneHintFor = useCallback(
         (durationMs: number = 3000) => {
             if (!isMobile) {
@@ -1200,9 +1223,30 @@ export const AnimeVideoPlayer = ({
         [isMobile],
     );
 
+    const showShortcutHintFor = useCallback(
+        (durationMs: number = 6000) => {
+            if (!isDesktopPlatform) {
+                setShowShortcutHint(false);
+                return;
+            }
+            setShowShortcutHint(true);
+            if (shortcutHintTimeoutRef.current !== null) {
+                window.clearTimeout(shortcutHintTimeoutRef.current);
+            }
+            shortcutHintTimeoutRef.current = window.setTimeout(() => {
+                setShowShortcutHint(false);
+                shortcutHintTimeoutRef.current = null;
+            }, durationMs);
+        },
+        [isDesktopPlatform],
+    );
+
     useEffect(() => () => {
         if (tapZoneHintTimeoutRef.current !== null) {
             window.clearTimeout(tapZoneHintTimeoutRef.current);
+        }
+        if (shortcutHintTimeoutRef.current !== null) {
+            window.clearTimeout(shortcutHintTimeoutRef.current);
         }
     }, []);
 
@@ -1388,6 +1432,21 @@ export const AnimeVideoPlayer = ({
         () => [...subtitleCues].sort((a, b) => a.start - b.start),
         [subtitleCues],
     );
+
+    const getCurrentSubtitleCue = useCallback(() => {
+        if (!sortedSubtitleCues.length) {
+            return null;
+        }
+        const offsetSeconds = safeSubtitleOffsetMs / 1000;
+        const baseTime = videoRef.current?.currentTime ?? currentTime;
+        const effectiveTime = baseTime + offsetSeconds;
+        const epsilon = SUBTITLE_TIME_EPSILON;
+        return (
+            sortedSubtitleCues.find(
+                (cue) => effectiveTime + epsilon >= cue.start && effectiveTime - epsilon <= cue.end,
+            ) ?? null
+        );
+    }, [sortedSubtitleCues, safeSubtitleOffsetMs, currentTime]);
 
     const getSubtitleSyncTarget = useCallback(
         (direction: 'previous' | 'next') => {
@@ -2380,7 +2439,7 @@ export const AnimeVideoPlayer = ({
         }
     };
 
-    const togglePlay = () => {
+    const togglePlay = useCallback(() => {
         const video = videoRef.current;
         if (!video) return;
         if (video.paused) {
@@ -2394,7 +2453,8 @@ export const AnimeVideoPlayer = ({
             userPausedRef.current = true;
             video.pause();
         }
-    };
+    }, [setIsOverlayVisible]);
+
 
     const resumeFromDictionary = () => {
         const video = videoRef.current;
@@ -2785,18 +2845,19 @@ export const AnimeVideoPlayer = ({
         setCurrentTime(safeTime);
     };
 
-    const skipToPreviousSubtitle = () => {
-        if (!activeCues.length) {
-            seekBy(-10);
-            return;
-        }
+    const repeatCurrentSubtitle = useCallback(() => {
         if (!sortedSubtitleCues.length) {
-            seekBy(-10);
             return;
         }
         const offsetSeconds = safeSubtitleOffsetMs / 1000;
-        const effectiveTime = currentTime + offsetSeconds;
+        const baseTime = videoRef.current?.currentTime ?? currentTime;
+        const effectiveTime = baseTime + offsetSeconds;
         const epsilon = SUBTITLE_TIME_EPSILON;
+        const currentCue = getCurrentSubtitleCue();
+        if (currentCue) {
+            seekToTime(currentCue.start - offsetSeconds);
+            return;
+        }
         for (let i = sortedSubtitleCues.length - 1; i >= 0; i -= 1) {
             const cue = sortedSubtitleCues[i];
             if (cue.start < effectiveTime - epsilon) {
@@ -2805,20 +2866,54 @@ export const AnimeVideoPlayer = ({
             }
         }
         seekToTime(sortedSubtitleCues[0].start - offsetSeconds);
-    };
+    }, [sortedSubtitleCues, safeSubtitleOffsetMs, currentTime, getCurrentSubtitleCue, seekToTime]);
 
-    const skipToNextSubtitle = () => {
-        if (!activeCues.length) {
-            seekBy(10);
+    const skipToPreviousSubtitle = useCallback(() => {
+        if (!sortedSubtitleCues.length) {
+            seekBy(-10);
             return;
         }
+        const offsetSeconds = safeSubtitleOffsetMs / 1000;
+        const baseTime = videoRef.current?.currentTime ?? currentTime;
+        const effectiveTime = baseTime + offsetSeconds;
+        const epsilon = SUBTITLE_TIME_EPSILON;
+        const currentCue = getCurrentSubtitleCue();
+        if (currentCue) {
+            const currentIndex = sortedSubtitleCues.findIndex((cue) => cue.id === currentCue.id);
+            if (currentIndex > 0) {
+                seekToTime(sortedSubtitleCues[currentIndex - 1].start - offsetSeconds);
+                return;
+            }
+            seekToTime(sortedSubtitleCues[0].start - offsetSeconds);
+            return;
+        }
+        for (let i = sortedSubtitleCues.length - 1; i >= 0; i -= 1) {
+            const cue = sortedSubtitleCues[i];
+            if (cue.start < effectiveTime - epsilon) {
+                seekToTime(cue.start - offsetSeconds);
+                return;
+            }
+        }
+        seekToTime(sortedSubtitleCues[0].start - offsetSeconds);
+    }, [sortedSubtitleCues, safeSubtitleOffsetMs, currentTime, getCurrentSubtitleCue, seekBy, seekToTime]);
+
+    const skipToNextSubtitle = useCallback(() => {
         if (!sortedSubtitleCues.length) {
             seekBy(10);
             return;
         }
         const offsetSeconds = safeSubtitleOffsetMs / 1000;
-        const effectiveTime = currentTime + offsetSeconds;
+        const baseTime = videoRef.current?.currentTime ?? currentTime;
+        const effectiveTime = baseTime + offsetSeconds;
         const epsilon = SUBTITLE_TIME_EPSILON;
+        const currentCue = getCurrentSubtitleCue();
+        if (currentCue) {
+            const currentIndex = sortedSubtitleCues.findIndex((cue) => cue.id === currentCue.id);
+            if (currentIndex >= 0 && currentIndex < sortedSubtitleCues.length - 1) {
+                seekToTime(sortedSubtitleCues[currentIndex + 1].start - offsetSeconds);
+                return;
+            }
+        }
         for (let i = 0; i < sortedSubtitleCues.length; i += 1) {
             const cue = sortedSubtitleCues[i];
             if (cue.start > effectiveTime + epsilon) {
@@ -2828,7 +2923,91 @@ export const AnimeVideoPlayer = ({
         }
         const lastCue = sortedSubtitleCues[sortedSubtitleCues.length - 1];
         seekToTime(lastCue.start - offsetSeconds);
-    };
+    }, [sortedSubtitleCues, safeSubtitleOffsetMs, currentTime, getCurrentSubtitleCue, seekBy, seekToTime]);
+
+    const toggleSubtitles = useCallback(() => {
+        setIsSubtitleDisabled((prev) => !prev);
+    }, [setIsSubtitleDisabled]);
+
+    const nudgeSubtitleOffset = useCallback((delta: number) => {
+        setSubtitleOffsetMs((prev) => (Number.isFinite(prev) ? prev : 0) + delta);
+    }, [setSubtitleOffsetMs]);
+
+    const alignSubtitleOffset = useCallback((direction: 'previous' | 'next') => {
+        const cue = getSubtitleSyncTarget(direction);
+        syncSubtitleOffsetToCue(cue);
+    }, [getSubtitleSyncTarget, syncSubtitleOffsetToCue]);
+
+    useEffect(() => {
+        if (!isDesktopPlatform) {
+            return;
+        }
+        enableScope(HotkeyScope.ANIME);
+        return () => disableScope(HotkeyScope.ANIME);
+    }, [disableScope, enableScope, isDesktopPlatform]);
+
+    const getHotkeyOptions = useCallback(
+        (keys: string[]) => ({
+            ...hotkeyScopeOptions,
+            enabled: isDesktopPlatform && keys.length > 0,
+        }),
+        [hotkeyScopeOptions, isDesktopPlatform],
+    );
+
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.TOGGLE_PLAY],
+        () => togglePlay(),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.TOGGLE_PLAY]),
+        [togglePlay],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.PREVIOUS_SUBTITLE],
+        () => skipToPreviousSubtitle(),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.PREVIOUS_SUBTITLE]),
+        [skipToPreviousSubtitle],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.NEXT_SUBTITLE],
+        () => skipToNextSubtitle(),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.NEXT_SUBTITLE]),
+        [skipToNextSubtitle],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.REPEAT_SUBTITLE],
+        () => repeatCurrentSubtitle(),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.REPEAT_SUBTITLE]),
+        [repeatCurrentSubtitle],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.TOGGLE_SUBTITLES],
+        () => toggleSubtitles(),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.TOGGLE_SUBTITLES]),
+        [toggleSubtitles],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.ALIGN_PREVIOUS_SUBTITLE],
+        () => alignSubtitleOffset('previous'),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.ALIGN_PREVIOUS_SUBTITLE]),
+        [alignSubtitleOffset],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.ALIGN_NEXT_SUBTITLE],
+        () => alignSubtitleOffset('next'),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.ALIGN_NEXT_SUBTITLE]),
+        [alignSubtitleOffset],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.OFFSET_SUBTITLE_BACK_100],
+        () => nudgeSubtitleOffset(-100),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.OFFSET_SUBTITLE_BACK_100]),
+        [nudgeSubtitleOffset],
+    );
+    useHotkeysHook(
+        animeHotkeys[AnimeHotkey.OFFSET_SUBTITLE_FORWARD_100],
+        () => nudgeSubtitleOffset(100),
+        getHotkeyOptions(animeHotkeys[AnimeHotkey.OFFSET_SUBTITLE_FORWARD_100]),
+        [nudgeSubtitleOffset],
+    );
 
     const episodeMenuItems = useMemo(
         () =>
@@ -2908,6 +3087,17 @@ export const AnimeVideoPlayer = ({
         },
         [highlightedSubtitle],
     );
+
+    const renderShortcutKeys = useCallback((keys: string[]) => {
+        if (!keys.length) {
+            return (
+                <Typography variant="body2" sx={{ opacity: 0.6 }}>
+                    Unassigned
+                </Typography>
+            );
+        }
+        return <Hotkey keys={keys} />;
+    }, []);
 
     return (
         <Box
@@ -3021,6 +3211,49 @@ export const AnimeVideoPlayer = ({
                     >
                         Tap here to play/pause
                     </Typography>
+                </Box>
+            )}
+            {showShortcutHint && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: 16,
+                        left: 16,
+                        zIndex: 4,
+                        pointerEvents: 'none',
+                        color: '#fff',
+                        backgroundColor: 'rgba(0,0,0,0.55)',
+                        borderRadius: 2,
+                        px: 2,
+                        py: 1.5,
+                        minWidth: 260,
+                        maxWidth: 380,
+                        backdropFilter: 'blur(8px)',
+                    }}
+                >
+                    <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.7 }}>
+                        Shortcuts
+                    </Typography>
+                    <Stack spacing={0.75} sx={{ mt: 1 }}>
+                        {ANIME_HOTKEYS.map((hotkey) => (
+                            <Stack
+                                key={hotkey}
+                                direction="row"
+                                spacing={2}
+                                alignItems="center"
+                                sx={{ justifyContent: 'space-between' }}
+                            >
+                                {renderShortcutKeys(animeHotkeys[hotkey] ?? [])}
+                                <Typography
+                                    variant="body2"
+                                    sx={{ opacity: 0.7, textAlign: 'right' }}
+                                    title={ANIME_HOTKEY_DESCRIPTIONS[hotkey]}
+                                >
+                                    {ANIME_HOTKEY_LABELS[hotkey]}
+                                </Typography>
+                            </Stack>
+                        ))}
+                    </Stack>
                 </Box>
             )}
             {statusMessage && (
@@ -3357,11 +3590,15 @@ export const AnimeVideoPlayer = ({
                                 onClick={(event) => {
                                     event.stopPropagation();
                                     markMenuInteraction();
-                                    showTapZoneHintFor(3000);
+                                    if (isDesktopPlatform) {
+                                        showShortcutHintFor(6000);
+                                    } else {
+                                        showTapZoneHintFor(3000);
+                                    }
                                 }}
                                 color="inherit"
-                                aria-label="Show tap zone"
-                                title="Show tap zone"
+                                aria-label={infoButtonLabel}
+                                title={infoButtonLabel}
                             >
                                 <InfoOutlinedIcon />
                             </IconButton>

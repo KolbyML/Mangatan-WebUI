@@ -1,10 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import Typography from '@mui/material/Typography';
+import AddIcon from '@mui/icons-material/Add';
+import { bindTrigger, usePopupState } from 'material-ui-popup-state/hooks';
 import { useOCR } from '@/Manatan/context/OCRContext';
 import { AppStorage } from '@/lib/storage/AppStorage.ts';
 import { COLOR_THEMES, DEFAULT_SETTINGS } from '@/Manatan/types';
 import { apiRequest, getAppVersion, checkForUpdates, triggerAppUpdate, installAppUpdate } from '@/Manatan/utils/api';
 import { DictionaryManager } from './DictionaryManager';
 import { getAnkiVersion, getDeckNames, getModelNames, getModelFields } from '@/Manatan/utils/anki';
+import { ResetButton } from '@/base/components/buttons/ResetButton.tsx';
+import { Hotkey } from '@/features/reader/hotkeys/settings/components/Hotkey.tsx';
+import { RecordHotkey } from '@/features/reader/hotkeys/settings/components/RecordHotkey.tsx';
+import { AnimeHotkey, ANIME_HOTKEYS, ANIME_HOTKEY_LABELS, DEFAULT_ANIME_HOTKEYS } from '@/Manatan/hotkeys/AnimeHotkeys.ts';
 
 const checkboxLabelStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', marginBottom: '8px', cursor: 'pointer', textAlign: 'left', 
@@ -32,6 +41,51 @@ const statusDotStyle = (connected: boolean): React.CSSProperties => ({
     boxShadow: connected ? '0 0 5px #2ecc71' : 'none'
 });
 
+const hotkeyRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap',
+};
+
+const AnimeHotkeyRow = ({
+    hotkey,
+    keys,
+    existingKeys,
+    onChange,
+}: {
+    hotkey: AnimeHotkey;
+    keys: string[];
+    existingKeys: string[];
+    onChange: (keys: string[]) => void;
+}) => {
+    const popupState = usePopupState({ popupId: `manatan-record-hotkey-${hotkey}`, variant: 'dialog' });
+
+    return (
+        <div style={hotkeyRowStyle}>
+            <Typography variant="body2" sx={{ minWidth: 200, flexGrow: 1 }}>
+                {ANIME_HOTKEY_LABELS[hotkey]}
+            </Typography>
+            <Hotkey
+                keys={keys}
+                removeKey={(keyToRemove) => onChange(keys.filter((key) => key !== keyToRemove))}
+            />
+            <IconButton {...bindTrigger(popupState)} size="small" color="inherit" aria-label="Add hotkey">
+                <AddIcon fontSize="small" />
+            </IconButton>
+            <ResetButton asIconButton onClick={() => onChange(DEFAULT_ANIME_HOTKEYS[hotkey])} />
+            {popupState.isOpen && (
+                <RecordHotkey
+                    onClose={popupState.close}
+                    onCreate={(recordedKeys) => onChange([...keys, ...recordedKeys])}
+                    existingKeys={existingKeys}
+                    disablePortal
+                />
+            )}
+        </div>
+    );
+};
+
 const MAPPING_OPTIONS = [
     'None',
     'Sentence',
@@ -48,6 +102,25 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const [localSettings, setLocalSettings] = useState(settings);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dictManagerKey, setDictManagerKey] = useState(0);
+    const animeHotkeys = useMemo(
+        () => ({
+            ...DEFAULT_ANIME_HOTKEYS,
+            ...(localSettings.animeHotkeys ?? {}),
+        }),
+        [localSettings.animeHotkeys],
+    );
+    const existingAnimeHotkeys = useMemo(() => Object.values(animeHotkeys).flat(), [animeHotkeys]);
+
+    const updateAnimeHotkey = useCallback((hotkey: AnimeHotkey, keys: string[]) => {
+        setLocalSettings((prev) => ({
+            ...prev,
+            animeHotkeys: {
+                ...DEFAULT_ANIME_HOTKEYS,
+                ...(prev.animeHotkeys ?? {}),
+                [hotkey]: keys,
+            },
+        }));
+    }, [setLocalSettings]);
 
     // --- ANKI STATE ---
     const [ankiStatus, setAnkiStatus] = useState<'idle' | 'loading' | 'connected' | 'error'>('idle');
@@ -309,7 +382,14 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const showDicts = isNativeApp || localSettings.enableYomitan;
 
     return (
-        <div className="ocr-modal-overlay" onClick={onClose}>
+        <div
+            className="ocr-modal-overlay"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                    onClose();
+                }
+            }}
+        >
             <div className="ocr-modal settings-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="ocr-modal-content">
                     <h2>Settings</h2>
@@ -770,6 +850,26 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                     1. You can get a free key by signing up on the site: <a href="https://jimaku.cc/account" target="_blank" rel="noreferrer">https://jimaku.cc/account</a>
                                 </div>
                                 <div>2. Generate an API key under the "API" heading and copy it</div>
+                            </div>
+                        </div>
+                        <div style={{ marginTop: '16px' }}>
+                            <h4 style={{ marginTop: 0 }}>Hotkeys</h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ fontSize: '0.85em', color: '#aaa', textAlign: 'right' }}>
+                                    Click a hotkey to remove it, or use + to add a new one.
+                                </div>
+                                {ANIME_HOTKEYS.map((hotkey) => (
+                                    <AnimeHotkeyRow
+                                        key={hotkey}
+                                        hotkey={hotkey}
+                                        keys={animeHotkeys[hotkey] ?? []}
+                                        existingKeys={existingAnimeHotkeys}
+                                        onChange={(keys) => updateAnimeHotkey(hotkey, keys)}
+                                    />
+                                ))}
+                                <Stack sx={{ alignItems: 'flex-end' }}>
+                                    <ResetButton onClick={() => handleChange('animeHotkeys', DEFAULT_ANIME_HOTKEYS)} variant="outlined" />
+                                </Stack>
                             </div>
                         </div>
                     </div>

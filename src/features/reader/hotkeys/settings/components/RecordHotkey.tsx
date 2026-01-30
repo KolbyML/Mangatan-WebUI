@@ -22,10 +22,14 @@ export const RecordHotkey = ({
     onClose,
     onCreate,
     existingKeys,
+    disablePortal,
+    container,
 }: {
     onClose: () => void;
     onCreate: (keys: string[]) => void;
     existingKeys: string[];
+    disablePortal?: boolean;
+    container?: Element | null;
 }) => {
     const { t } = useTranslation();
 
@@ -44,7 +48,13 @@ export const RecordHotkey = ({
     }, []);
 
     return (
-        <Dialog open onClose={onClose} fullWidth>
+        <Dialog
+            open
+            onClose={onClose}
+            fullWidth
+            disablePortal={disablePortal}
+            container={container ?? undefined}
+        >
             <DialogTitle>{t('hotkeys.create.dialog.title')}</DialogTitle>
             <DialogContent>
                 <Stack sx={{ flexDirection: 'row', gap: 1 }}>

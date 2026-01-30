@@ -11,4 +11,5 @@ export enum HotkeyScope {
     GLOBAL = 'global',
     MAIN_APP = 'main_app',
     READER = 'reader',
+    ANIME = 'anime',
 }

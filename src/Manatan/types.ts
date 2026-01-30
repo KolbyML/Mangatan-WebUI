@@ -1,5 +1,5 @@
 export interface Rect { x: number; y: number; width: number; height: number; rotation?: number; }
-
+import { AnimeHotkey, DEFAULT_ANIME_HOTKEYS } from '@/Manatan/hotkeys/AnimeHotkeys.ts';
 export interface OcrBlock {
     text: string;
     tightBoundingBox: Rect;
@@ -29,6 +29,7 @@ export interface Settings {
     boundingBoxAdjustment: number;
     subtitleFontSize: number;
     subtitleFontWeight: number;
+    animeHotkeys: Record<AnimeHotkey, string[]>;
     tapZonePercent: number;
     jimakuApiKey?: string;
     yomitanLanguage: YomitanLanguage;
@@ -159,6 +160,7 @@ export const DEFAULT_SETTINGS: Settings = {
     boundingBoxAdjustment: 5,
     subtitleFontSize: 22,
     subtitleFontWeight: 600,
+    animeHotkeys: DEFAULT_ANIME_HOTKEYS,
     tapZonePercent: 30,
     jimakuApiKey: '',
     yomitanLanguage: 'japanese',
