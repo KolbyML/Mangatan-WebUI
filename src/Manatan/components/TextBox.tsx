@@ -382,12 +382,16 @@ export const TextBox: React.FC<{
                 }
             }
 
-            const lookupContent = cleanPunctuation(block.text, settings.addSpaceOnMerge).replace(/\u200B/g, '\n');
-            const sentence = lookupContent.replace(/[\n\r]+/g, '');
+            const rawContent = cleanPunctuation(block.text, settings.addSpaceOnMerge);
+            const cleanContent = rawContent.replace(/[\u200B\n\r]+/g, '');
 
             const encoder = new TextEncoder();
-            const prefix = lookupContent.substring(0, charOffset);
-            const byteIndex = encoder.encode(prefix).length;
+            const prefix = rawContent.substring(0, charOffset);
+            
+            const ignoredLength = (prefix.match(/[\u200B\n\r]/g) || []).length;
+            const adjustedOffset = Math.max(0, charOffset - ignoredLength);
+
+            const byteIndex = encoder.encode(cleanContent.substring(0, adjustedOffset)).length;
 
             setDictPopup({
                 visible: true,
@@ -397,11 +401,11 @@ export const TextBox: React.FC<{
                 isLoading: true,
                 systemLoading: false,
                 highlight: undefined,
-                context: { imgSrc, sentence, spreadData }
+                context: { imgSrc, sentence: cleanContent, spreadData }
             });
 
             // Pass the resultGroupingMode setting here
-            const results = await lookupYomitan(lookupContent, byteIndex, settings.resultGroupingMode);
+            const results = await lookupYomitan(cleanContent, byteIndex, settings.resultGroupingMode);
 
             if (results === 'loading') {
                  setDictPopup(prev => ({ ...prev, results: [], isLoading: false, systemLoading: true }));
