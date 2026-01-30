@@ -58,9 +58,9 @@ const MEMBERSHIP_TIERS: MembershipTier[] = [
     { key: 'diamond', label: '💎 Diamond', backers: [] },
     { key: 'ruby', label: '❤️ Ruby', backers: [] },
     { key: 'sapphire', label: '🔷 Sapphire', backers: [] },
-    { key: 'emerald', label: '🟢 Emerald', backers: [] },
-    { key: 'crystal', label: '✨ Crystal', backers: [] },
-    { key: 'stone', label: '🪨 Stone', backers: [] },
+    { key: 'emerald', label: '🟢 Emerald', backers: ['Samu'] },
+    { key: 'crystal', label: '✨ Crystal', backers: ['Emelia', 'Leighton Woods'] },
+    { key: 'stone', label: '🪨 Stone', backers: ['Helios'] },
 ];
 
 const parseNextLink = (linkHeader: string | null): string | null => {
