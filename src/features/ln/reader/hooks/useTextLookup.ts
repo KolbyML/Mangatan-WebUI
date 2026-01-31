@@ -10,7 +10,11 @@ import { Rect } from '@/Manatan/types';
 export function useTextLookup() {
     const { settings, setDictPopup } = useOCR();
 
-    const getCharacterAtPoint = useCallback((x: number, y: number): { node: Node; offset: number } | null => {
+    const getCharacterAtPoint = useCallback((x: number, y: number): {
+        node: Node;
+        offset: number;
+        character: string; 
+    } | null => {
         let range: Range | null = null;
 
         if (document.caretRangeFromPoint) {
@@ -28,24 +32,24 @@ export function useTextLookup() {
         }
 
         const node = range.startContainer;
-        let offset = range.startOffset;
         const textLen = node.textContent?.length || 0;
 
         if (textLen === 0) return null;
 
+        // Build candidates
+        let offset = range.startOffset;
         const candidates: number[] = [];
 
         if (offset > 0) candidates.push(offset - 1);
         if (offset < textLen) candidates.push(offset);
         if (offset + 1 < textLen) candidates.push(offset + 1);
-
         if (candidates.length === 0) candidates.push(0);
 
         let bestOffset: number | null = null;
         let bestDistance = Infinity;
 
-        const marginX = 35;
-        const marginY = 45;
+        const MARGIN_X = 40;
+        const MARGIN_Y = 50;
 
         for (const candidateOffset of candidates) {
             try {
@@ -54,8 +58,8 @@ export function useTextLookup() {
                 charRange.setEnd(node, candidateOffset + 1);
                 const rect = charRange.getBoundingClientRect();
 
-                const insideX = x >= rect.left - marginX && x <= rect.right + marginX;
-                const insideY = y >= rect.top - marginY && y <= rect.bottom + marginY;
+                const insideX = x >= rect.left - MARGIN_X && x <= rect.right + MARGIN_X;
+                const insideY = y >= rect.top - MARGIN_Y && y <= rect.bottom + MARGIN_Y;
 
                 if (!insideX || !insideY) continue;
 
@@ -76,75 +80,107 @@ export function useTextLookup() {
 
         if (bestOffset === null) return null;
 
-        return { node, offset: bestOffset };
+        const character = node.textContent?.[bestOffset] || '';
+
+        return { node, offset: bestOffset, character };
     }, []);
 
-    const getSentenceContext = useCallback((node: Node, offset: number): { sentence: string; byteOffset: number } => {
-        // Get parent block element for context
-        let contextElement: Element | null = node.parentElement;
-        const blockTags = ['P', 'DIV', 'SECTION', 'ARTICLE', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
+    const getSentenceContext = useCallback((
+        targetNode: Node,
+        targetOffset: number
+    ): { sentence: string; byteOffset: number } | null => {
 
-        while (contextElement && contextElement.parentElement && !blockTags.includes(contextElement.tagName)) {
+        // Find block element
+        let contextElement: Element | null = targetNode.parentElement;
+        const BLOCK_TAGS = ['P', 'DIV', 'SECTION', 'ARTICLE', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
+
+        while (contextElement && contextElement.parentElement && !BLOCK_TAGS.includes(contextElement.tagName)) {
             contextElement = contextElement.parentElement;
         }
 
         if (!contextElement) {
-            const text = node.textContent || '';
+            const text = targetNode.textContent || '';
             const encoder = new TextEncoder();
-            const prefix = text.substring(0, offset);
+            const prefix = text.substring(0, targetOffset);
             return { sentence: text, byteOffset: encoder.encode(prefix).length };
         }
 
-        const fullText = contextElement.textContent || '';
+        // Single pass: build text + track position
+        const walker = document.createTreeWalker(
+            contextElement,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: (node) => {
+                    if (node.parentElement?.closest('rt, rp')) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
 
-        // Calculate offset within full text
-        const walker = document.createTreeWalker(contextElement, NodeFilter.SHOW_TEXT);
+        let fullText = '';
+        let clickPosition: number | null = null;
         let currentNode: Node | null;
-        let totalOffset = 0;
 
         while ((currentNode = walker.nextNode())) {
-            if (currentNode === node) {
-                totalOffset += offset;
-                break;
+            const nodeText = currentNode.textContent || '';
+
+            // Mark position BEFORE adding text
+            if (currentNode === targetNode) {
+                clickPosition = fullText.length + targetOffset;
             }
-            totalOffset += (currentNode.textContent || '').length;
+
+            fullText += nodeText;
         }
 
+        if (clickPosition === null) {
+            console.warn('❌ Target node not found in walker');
+            const text = targetNode.textContent || '';
+            const encoder = new TextEncoder();
+            const prefix = text.substring(0, targetOffset);
+            return { sentence: text, byteOffset: encoder.encode(prefix).length };
+        }
 
-        // Japanese sentence boundaries: 。！？
-        // English sentence boundaries: . ! ?
-        const sentenceEndRegex = /[。！？.!?]/g;
+        console.log(`📝 Full text (${fullText.length} chars): "${fullText}"`);
+        console.log(`👆 Clicked character: "${fullText[clickPosition]}"`);
 
-        // Find sentence start (look backwards for previous sentence end)
-        let sentenceStart = 0;
-        for (let i = totalOffset - 1; i >= 0; i--) {
-            if (sentenceEndRegex.test(fullText[i])) {
-                sentenceStart = i + 1;
+        // Find sentence boundaries
+        const SENTENCE_END = '。！？.!?';
+        let start = 0;
+        let end = fullText.length;
+
+        for (let i = clickPosition - 1; i >= 0; i--) {
+            if (SENTENCE_END.includes(fullText[i])) {
+                start = i + 1;
                 break;
             }
         }
 
-        // Find sentence end (look forwards for next sentence end)
-        let sentenceEnd = fullText.length;
-        for (let i = totalOffset; i < fullText.length; i++) {
-            if (sentenceEndRegex.test(fullText[i])) {
-                sentenceEnd = i + 1; // Include the punctuation
+        for (let i = clickPosition; i < fullText.length; i++) {
+            if (SENTENCE_END.includes(fullText[i])) {
+                end = i + 1;
                 break;
             }
         }
 
-        // Extract the sentence
-        const sentence = fullText.substring(sentenceStart, sentenceEnd).trim();
+        // Extract and trim
+        const sentenceRaw = fullText.substring(start, end);
+        const leadingSpaces = sentenceRaw.length - sentenceRaw.trimStart().length;
+        const sentence = sentenceRaw.trim();
 
-        // Calculate byte offset within the sentence
-        const offsetInSentence = totalOffset - sentenceStart;
+        const posInSentence = clickPosition - start - leadingSpaces;
+
+
+
+        // Convert to byte offset
         const encoder = new TextEncoder();
-        const sentencePrefix = sentence.substring(0, offsetInSentence);
-        const byteOffset = encoder.encode(sentencePrefix).length;
+        const prefix = sentence.substring(0, Math.max(0, posInSentence));
+        const byteOffset = encoder.encode(prefix).length;
+
 
         return { sentence, byteOffset };
     }, []);
-
     /**
      * Attempt to lookup text at click position
      * @returns true if lookup was triggered, false if clicked on empty space

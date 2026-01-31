@@ -184,6 +184,68 @@ export function useReaderCore({
         }
     }, []);
 
+
+
+
+    const isNearText = useCallback((x: number, y: number): boolean => {
+        let range: Range | null = null;
+
+        if (document.caretRangeFromPoint) {
+            range = document.caretRangeFromPoint(x, y);
+        } else if ((document as any).caretPositionFromPoint) {
+            const pos = (document as any).caretPositionFromPoint(x, y);
+            if (pos) {
+                range = document.createRange();
+                range.setStart(pos.offsetNode, pos.offset);
+            }
+        }
+
+        if (!range || range.startContainer.nodeType !== Node.TEXT_NODE) {
+            return false;
+        }
+
+        const node = range.startContainer;
+        const text = node.textContent || '';
+        if (!text.trim()) return false;
+
+        const offset = range.startOffset;
+        const textLen = text.length;
+
+        const candidates: number[] = [];
+        if (offset > 0) candidates.push(offset - 1);
+        if (offset < textLen) candidates.push(offset);
+        if (offset + 1 < textLen) candidates.push(offset + 1);
+        if (candidates.length === 0) candidates.push(0);
+
+        const MARGIN_X = 35;
+        const MARGIN_Y = 45;
+
+        for (const candidateOffset of candidates) {
+            const char = text[candidateOffset];
+
+            if (!char || /\s/.test(char)) continue;
+
+            if (node.parentElement?.closest('rt, rp')) continue;
+
+            try {
+                const charRange = document.createRange();
+                charRange.setStart(node, candidateOffset);
+                charRange.setEnd(node, candidateOffset + 1);
+                const rect = charRange.getBoundingClientRect();
+
+                const insideX = x >= rect.left - MARGIN_X && x <= rect.right + MARGIN_X;
+                const insideY = y >= rect.top - MARGIN_Y && y <= rect.bottom + MARGIN_Y;
+
+                if (insideX && insideY) {
+                    return true;
+                }
+            } catch (err) {
+                continue;
+            }
+        }
+
+        return false;
+    }, []);
     const handleTouchEndEvent = useCallback(
         (e: React.TouchEvent, navCallbacks: NavigationCallbacks) => {
             if (!touchStartRef.current) return;
@@ -197,81 +259,41 @@ export function useReaderCore({
             touchStartRef.current = null;
 
             if (!result && !isDraggingRef.current) {
-                onToggleUI?.();
+                const touch = e.changedTouches[0];
+                if (touch) {
+                    const nearText = isNearText(touch.clientX, touch.clientY);
+
+                    if (!nearText) {
+                        onToggleUI?.();
+                    }
+                } else {
+                    onToggleUI?.();
+                }
             }
         },
-        [navOptions, onToggleUI]
+        [navOptions, onToggleUI, isNearText]
     );
-
-
-
-
     const handleContentClick = useCallback(
         async (e: React.MouseEvent) => {
             if (isDraggingRef.current) return;
 
             const target = e.target as HTMLElement;
 
-            if (
-                target.closest(
-                    'a, button, img, ruby rt, .nav-btn, .reader-progress, .reader-slider-wrap'
-                )
-            ) {
+            if (target.closest(
+                'a, button, img, ruby rt, .nav-btn, .reader-progress, .reader-slider-wrap, .dict-popup'
+            )) {
                 return;
             }
 
-            const isNearText = (() => {
-                const range = document.caretRangeFromPoint?.(e.clientX, e.clientY);
-                if (!range) return false;
+            const nearText = isNearText(e.clientX, e.clientY);
 
-                if (range.startContainer.nodeType === Node.TEXT_NODE) {
-                    const text = range.startContainer.textContent || '';
-                    if (!text.trim()) return false;
-
-                    const offset = range.startOffset;
-
-                    const char = text[offset];
-                    if (!char || /\s/.test(char)) {
-                        const hasNearbyChar =
-                            (offset > 0 && text[offset - 1] && !/\s/.test(text[offset - 1])) ||
-                            (offset < text.length && text[offset + 1] && !/\s/.test(text[offset + 1]));
-
-                        if (!hasNearbyChar) return false;
-                    }
-
-                    try {
-                        const charRange = document.createRange();
-                        const checkOffset = offset >= text.length ? Math.max(0, text.length - 1) : offset;
-                        charRange.setStart(range.startContainer, checkOffset);
-                        charRange.setEnd(range.startContainer, checkOffset + 1);
-
-                        const rect = charRange.getBoundingClientRect();
-                        const marginX = 8;
-                        const marginY = 8;
-
-                        const isInBounds = (
-                            e.clientX >= rect.left - marginX &&
-                            e.clientX <= rect.right + marginX &&
-                            e.clientY >= rect.top - marginY &&
-                            e.clientY <= rect.bottom + marginY
-                        );
-
-                        return isInBounds;
-                    } catch (err) {
-                        return false;
-                    }
-                }
-
-                return false;
-            })();
-
-            if (isNearText) {
+            if (nearText) {
                 await tryLookup(e);
             } else {
                 onToggleUI?.();
             }
         },
-        [tryLookup, onToggleUI]
+        [isNearText, tryLookup, onToggleUI]
     );
     const isDragging = useCallback(() => isDraggingRef.current, []);
 

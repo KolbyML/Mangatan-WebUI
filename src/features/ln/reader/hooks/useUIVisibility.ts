@@ -23,7 +23,7 @@ export function useUIVisibility(
     options: UseUIVisibilityOptions = {}
 ): UseUIVisibilityReturn {
     const {
-        autoHideDelay = 5000,
+        autoHideDelay = 2000,
         initialVisible = false,
     } = options;
 
