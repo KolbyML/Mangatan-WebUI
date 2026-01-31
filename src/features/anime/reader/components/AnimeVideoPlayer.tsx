@@ -59,6 +59,7 @@ import { HotkeyScope } from '@/features/hotkeys/Hotkeys.types.ts';
 import { useOCR } from '@/Manatan/context/OCRContext.tsx';
 import ManatanLogo from '@/Manatan/assets/manatan_logo.png';
 import { lookupYomitan } from '@/Manatan/utils/api.ts';
+import { buildSentenceFuriganaFromLookup } from '@/Manatan/utils/japaneseFurigana';
 import { DictionaryResult } from '@/Manatan/types.ts';
 import { StructuredContent } from '@/Manatan/components/YomitanPopup.tsx';
 import { makeToast } from '@/base/utils/Toast.ts';
@@ -391,6 +392,7 @@ const generateAnkiFurigana = (entry: DictionaryResult): string => {
         })
         .join('');
 };
+
 
 const getLowestFrequency = (entry: DictionaryResult): string => {
     if (!entry.frequencies || entry.frequencies.length === 0) {
@@ -2350,6 +2352,13 @@ export const AnimeVideoPlayer = ({
             const map = settings.ankiFieldMap || {};
             const fields: Record<string, string> = {};
             const sentence = dictionaryContext?.sentence || '';
+            const needsSentenceFurigana = Object.values(map).includes('Sentence Furigana');
+            const sentenceFurigana = needsSentenceFurigana
+                ? await buildSentenceFuriganaFromLookup(sentence, lookupYomitan, {
+                      language: settings.yomitanLanguage,
+                      groupingMode: settings.resultGroupingMode,
+                  })
+                : sentence;
 
             Object.entries(map).forEach(([ankiField, mapType]) => {
                 if (mapType === 'Target Word') fields[ankiField] = entry.headword;
@@ -2360,6 +2369,9 @@ export const AnimeVideoPlayer = ({
                 }
                 else if (mapType === 'Frequency') fields[ankiField] = getLowestFrequency(entry);
                 else if (mapType === 'Sentence') fields[ankiField] = sentence;
+                else if (mapType === 'Sentence Furigana') {
+                    fields[ankiField] = sentenceFurigana;
+                }
                 else if (typeof mapType === 'string') {
                     const name = getSingleGlossaryName(mapType);
                     if (name) {
@@ -2425,6 +2437,8 @@ export const AnimeVideoPlayer = ({
             settings.ankiDeck,
             settings.ankiFieldMap,
             settings.ankiModel,
+            settings.resultGroupingMode,
+            settings.yomitanLanguage,
             showAlert,
         ],
     );

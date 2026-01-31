@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useOCR } from '@/Manatan/context/OCRContext';
 import { findNotes, addNote, guiBrowse, imageUrlToBase64Webp } from '@/Manatan/utils/anki';
 import { cleanPunctuation, lookupYomitan } from '@/Manatan/utils/api';
+import { buildSentenceFuriganaFromLookup } from '@/Manatan/utils/japaneseFurigana';
 import { DictionaryResult } from '@/Manatan/types';
 import { CropperModal } from '@/Manatan/components/CropperModal';
 
@@ -248,6 +249,7 @@ const AnkiButtons: React.FC<{
             }).join('');
         };
 
+
         const getLowestFrequency = (): string => {
             if (!entry.frequencies || entry.frequencies.length === 0) return '';
             
@@ -308,6 +310,13 @@ const AnkiButtons: React.FC<{
         });
 
         const sentence = dictPopup.context?.sentence || '';
+        const needsSentenceFurigana = Object.values(map).includes('Sentence Furigana');
+        const sentenceFurigana = needsSentenceFurigana
+            ? await buildSentenceFuriganaFromLookup(sentence, lookupYomitan, {
+                  language: settings.yomitanLanguage,
+                  groupingMode: settings.resultGroupingMode,
+              })
+            : sentence;
         // Populate Fields
         for (const [ankiField, mapType] of Object.entries(map)) {
             if (mapType === 'Target Word') fields[ankiField] = entry.headword;
@@ -316,6 +325,7 @@ const AnkiButtons: React.FC<{
             else if (mapType === 'Definition' || mapType === 'Glossary') fields[ankiField] = buildGlossaryHtml();
             else if (mapType === 'Frequency') fields[ankiField] = getLowestFrequency();
             else if (mapType === 'Sentence') fields[ankiField] = sentence;
+            else if (mapType === 'Sentence Furigana') fields[ankiField] = sentenceFurigana;
             else if (typeof mapType === 'string') {
                 const name = getSingleGlossaryName(mapType);
                 if (name) {
