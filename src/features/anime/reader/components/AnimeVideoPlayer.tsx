@@ -3878,6 +3878,52 @@ export const AnimeVideoPlayer = ({
                                             </Stack>
                                         )}
                                     </Stack>
+                                    {entry.frequencies && entry.frequencies.length > 0 && (
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                gap: 0.75,
+                                                mb: 1,
+                                            }}
+                                        >
+                                            {entry.frequencies.map((freq, freqIndex) => (
+                                                <Box
+                                                    key={`${entry.headword}-freq-${freqIndex}`}
+                                                    sx={{
+                                                        display: 'inline-flex',
+                                                        fontSize: '0.7rem',
+                                                        borderRadius: 0.75,
+                                                        overflow: 'hidden',
+                                                        border: '1px solid rgba(255,255,255,0.2)',
+                                                    }}
+                                                >
+                                                    <Box
+                                                        sx={{
+                                                            backgroundColor: '#2ecc71',
+                                                            color: '#000',
+                                                            fontWeight: 'bold',
+                                                            px: 0.75,
+                                                            py: 0.2,
+                                                        }}
+                                                    >
+                                                        {freq.dictionaryName}
+                                                    </Box>
+                                                    <Box
+                                                        sx={{
+                                                            backgroundColor: '#333',
+                                                            color: '#eee',
+                                                            px: 0.75,
+                                                            py: 0.2,
+                                                            fontWeight: 'bold',
+                                                        }}
+                                                    >
+                                                        {freq.value}
+                                                    </Box>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    )}
                                     {entry.definitions?.map((def, defIndex) => (
                                         <Stack key={`${entry.headword}-def-${defIndex}`} sx={{ mb: 1 }}>
                                             <Stack direction="row" spacing={1} sx={{ mb: 0.5 }}>
