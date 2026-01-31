@@ -92,6 +92,7 @@ export interface Settings {
     enableOverlay: boolean;
     addSpaceOnMerge: boolean;
     enableDoubleClickEdit: boolean;
+    enableDoubleTapZoom: boolean;
     disableStatusIcon: boolean;
     autoPlayWordAudio: boolean;
     enableYomitan: boolean;
@@ -234,6 +235,7 @@ export const DEFAULT_SETTINGS: Settings = {
     enableOverlay: true,
     addSpaceOnMerge: false,
     enableDoubleClickEdit: false,
+    enableDoubleTapZoom: false,
     disableStatusIcon: false,
     autoPlayWordAudio: false,
     enableYomitan: ENABLE_YOMITAN_DEFAULT,

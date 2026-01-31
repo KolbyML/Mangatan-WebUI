@@ -40,6 +40,7 @@ export const useMobileZoomPan = (
         isRTL?: boolean;
         minScale?: number;
         maxScale?: number;
+        doubleTapZoomEnabled?: boolean;
         onScaleChange?: (scale: number) => void;
     } = {}
 ) => {
@@ -49,6 +50,7 @@ export const useMobileZoomPan = (
         isRTL = false,
         minScale = MIN_SCALE,
         maxScale = MAX_SCALE,
+        doubleTapZoomEnabled = true,
         onScaleChange,
     } = options;
 
@@ -217,31 +219,32 @@ export const useMobileZoomPan = (
                 Math.hypot(touch.clientX - x, touch.clientY - y) < DOUBLE_TAP_DISTANCE
             ) {
                 e.preventDefault();
+                if (doubleTapZoomEnabled) {
+                    const targetScale = scaleRef.current > 1.1 ? 1 : 2.5;
+                    const anchor = viewportToContent(touch.clientX, touch.clientY, scaleRef.current);
 
-                const targetScale = scaleRef.current > 1.1 ? 1 : 2.5;
-                const anchor = viewportToContent(touch.clientX, touch.clientY, scaleRef.current);
+                    applyScaleToDOM(targetScale);
 
-                applyScaleToDOM(targetScale);
+                    if (targetScale === 1) {
+                        container.scrollLeft = isRTL && !isVertical
+                            ? container.scrollWidth - container.clientWidth
+                            : 0;
+                        container.scrollTop = 0;
+                    } else {
+                        requestAnimationFrame(() => {
+                            scrollToKeepContentAt(anchor.x, anchor.y, touch.clientX, touch.clientY, targetScale);
+                        });
+                    }
 
-                if (targetScale === 1) {
-                    container.scrollLeft = isRTL && !isVertical
-                        ? container.scrollWidth - container.clientWidth
-                        : 0;
-                    container.scrollTop = 0;
-                } else {
-                    requestAnimationFrame(() => {
-                        scrollToKeepContentAt(anchor.x, anchor.y, touch.clientX, touch.clientY, targetScale);
-                    });
+                    setZoomState({ scale: targetScale, isZooming: false });
+                    onScaleChange?.(targetScale);
                 }
-
-                setZoomState({ scale: targetScale, isZooming: false });
-                onScaleChange?.(targetScale);
                 lastTap.current = { time: 0, x: 0, y: 0 };
             } else {
                 lastTap.current = { time: now, x: touch.clientX, y: touch.clientY };
             }
         }
-    }, [enabled, scrollContainerRef, viewportToContent, applyScaleToDOM, scrollToKeepContentAt, onScaleChange, isVertical, isRTL]);
+    }, [enabled, scrollContainerRef, viewportToContent, applyScaleToDOM, scrollToKeepContentAt, onScaleChange, isVertical, isRTL, doubleTapZoomEnabled]);
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
         if (!enabled || !isMobile) return;

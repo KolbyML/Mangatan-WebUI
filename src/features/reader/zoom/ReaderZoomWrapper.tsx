@@ -5,6 +5,7 @@ import { useMobileZoomPan } from './useMobileZoomPan';
 import { useReaderZoom } from './ReaderZoomContext';
 import { ReadingMode, ReadingDirection } from '@/features/reader/Reader.types';
 import { isContinuousVerticalReadingMode } from '@/features/reader/settings/ReaderSettings.utils';
+import { useOCR } from '@/Manatan/context/OCRContext';
 
 interface ReaderZoomWrapperProps {
     children: ReactNode;
@@ -20,6 +21,7 @@ export const ReaderZoomWrapper = forwardRef<HTMLDivElement, ReaderZoomWrapperPro
         const contentRef = useRef<HTMLDivElement>(null);
         const mergedRef = useMergedRef(ref, contentRef);
         const { setScale } = useReaderZoom();
+        const { settings } = useOCR();
 
         const isVertical = isContinuousVerticalReadingMode(readingMode);
         const isRTL = readingDirection === ReadingDirection.RTL;
@@ -32,6 +34,7 @@ export const ReaderZoomWrapper = forwardRef<HTMLDivElement, ReaderZoomWrapperPro
                 enabled,
                 isVertical,
                 isRTL,
+                doubleTapZoomEnabled: settings.enableDoubleTapZoom,
                 onScaleChange: setScale,
             }
         );

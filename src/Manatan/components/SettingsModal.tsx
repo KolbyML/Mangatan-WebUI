@@ -1202,6 +1202,15 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                     </div>
                                 </div>
                             </label>
+                            <label style={checkboxLabelStyle}>
+                                <input type="checkbox" checked={localSettings.enableDoubleTapZoom} onChange={(e) => handleChange('enableDoubleTapZoom', e.target.checked)} style={checkboxInputStyle} />
+                                <div>
+                                    Enable Double-Tap Zoom
+                                    <div style={{ opacity: 0.6, fontSize: '0.85em' }}>
+                                        Allows double-tap to zoom in the manga reader.
+                                    </div>
+                                </div>
+                            </label>
                         </div>
 
                         <h4>Visuals</h4>
