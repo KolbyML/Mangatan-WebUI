@@ -352,8 +352,6 @@ const AnkiButtons: React.FC<{
                   groupingMode: settings.resultGroupingMode,
               })
             : sentence;
-        
-        // Audio Logic
         const wordAudioField = Object.keys(map).find((key) => map[key] === 'Word Audio');
         let wordAudioData:
             | { url?: string; data?: string; filename: string; fields: string[] }
@@ -374,7 +372,6 @@ const AnkiButtons: React.FC<{
                 };
             }
         }
-
         // Populate Fields
         for (const [ankiField, mapType] of Object.entries(map)) {
             if (mapType === 'Target Word') fields[ankiField] = entry.headword;
@@ -782,6 +779,7 @@ export const YomitanPopup = () => {
         if (!dictPopup.visible) {
             setWordAudioSelection('auto');
             setWordAudioSelectionKey(null);
+            autoPlayKeyRef.current = null;
         }
     }, [dictPopup.visible]);
 
