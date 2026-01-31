@@ -410,10 +410,10 @@ const BaseReaderChapterViewer = ({
                 ),
                 ...applyStyles(readingMode === ReadingMode.CONTINUOUS_HORIZONTAL, {
                     ...applyStyles(themeDirection === 'ltr', {
-                        flexDirection: isLtrReadingDirection ? 'row' : 'row-reverse',
+                        flexDirection: isLtrReadingDirection ? 'row' : 'row',
                     }),
                     ...applyStyles(themeDirection === 'rtl', {
-                        flexDirection: isLtrReadingDirection ? 'row-reverse' : 'row',
+                        flexDirection: isLtrReadingDirection ? 'row' : 'row',
                     }),
                 }),
             }}
