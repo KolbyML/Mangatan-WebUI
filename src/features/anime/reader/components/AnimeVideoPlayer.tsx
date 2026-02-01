@@ -678,6 +678,16 @@ export const AnimeVideoPlayer = ({
     const lastPlaybackWarningRef = useRef<number | null>(null);
     const subtitleRequestRef = useRef(0);
     const dictionaryRequestRef = useRef(0);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+        video.playsInline = true;
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+    }, []);
     const menuInteractionRef = useRef(0);
     const resumePlaybackRef = useRef(false);
     const overlayVisibilityRef = useRef(false);

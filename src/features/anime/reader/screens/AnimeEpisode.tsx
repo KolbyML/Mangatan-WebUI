@@ -538,7 +538,7 @@ export const AnimeEpisode = () => {
             onRequestJimakuTitleOverride={openJimakuTitleDialog}
             title={episodeTitle}
             animeId={id ?? 'unknown'}
-            fillHeight={isMobile}
+            fillHeight
             showFullscreenButton={!isMobile}
             statusMessage={playerStatusMessage}
             onExit={() => {
@@ -554,17 +554,19 @@ export const AnimeEpisode = () => {
     return (
         <Stack
             sx={{
-                p: isMobile ? 0 : 2,
-                gap: isMobile ? 0 : 2,
-                minHeight: isMobile ? '100vh' : 'auto',
-                backgroundColor: isMobile ? 'black' : 'transparent',
+                p: 0,
+                gap: 0,
+                minHeight: '100vh',
+                height: '100vh',
+                backgroundColor: 'black',
             }}
         >
             <Box
                 sx={{
                     width: '100%',
                     backgroundColor: 'black',
-                    minHeight: isMobile ? '100vh' : 'auto',
+                    minHeight: '100vh',
+                    height: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -573,8 +575,8 @@ export const AnimeEpisode = () => {
                 <Box
                     sx={{
                         width: '100%',
-                        maxWidth: isMobile ? '100%' : 960,
-                        height: isMobile ? '100vh' : 'auto',
+                        maxWidth: '100%',
+                        height: '100%',
                     }}
                 >
                     {playerContent}
