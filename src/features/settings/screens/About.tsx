@@ -6,14 +6,21 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
+import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ListSubheader from '@mui/material/ListSubheader';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { requestManager } from '@/lib/requests/RequestManager.ts';
 import { ListItemLink } from '@/base/components/lists/ListItemLink.tsx';
 import { LoadingPlaceholder } from '@/base/components/feedback/LoadingPlaceholder.tsx';
@@ -21,8 +28,9 @@ import { defaultPromiseErrorHandler } from '@/lib/DefaultPromiseErrorHandler.ts'
 import { EmptyViewAbsoluteCentered } from '@/base/components/feedback/EmptyViewAbsoluteCentered.tsx';
 import { VersionInfo, WebUIVersionInfo } from '@/features/app-updates/components/VersionInfo.tsx';
 import { getErrorMessage } from '@/lib/HelperFunctions.ts';
-import { epochToDate } from '@/base/utils/DateHelper.ts';
+import { dateFormatter, epochToDate } from '@/base/utils/DateHelper.ts';
 import { useAppTitle } from '@/features/navigation-bar/hooks/useAppTitle.ts';
+import { makeToast } from '@/base/utils/Toast.ts';
 
 type Contributor = {
     key: string;
@@ -59,8 +67,35 @@ const MEMBERSHIP_TIERS: MembershipTier[] = [
     { key: 'ruby', label: '❤️ Ruby', backers: [] },
     { key: 'sapphire', label: '🔷 Sapphire', backers: [] },
     { key: 'emerald', label: '🟢 Emerald', backers: ['Samu'] },
-    { key: 'crystal', label: '✨ Crystal', backers: ['Emelia', 'Leighton Woods'] },
-    { key: 'stone', label: '🪨 Stone', backers: ['Helios'] },
+    { key: 'crystal', label: '✨ Crystal', backers: ['Emelia', 'artgor', 'Enviromath', 'Leighton Woods'] },
+    { key: 'stone', label: '🪨 Stone', backers: ['Helios', 'Ryohei11'] },
+];
+
+const DONATION_ADDRESSES = [
+    {
+        key: 'bitcoin',
+        label: '₿ Bitcoin',
+        ariaLabel: 'Bitcoin',
+        address: 'bc1pzeyspv22h2uq02dnrnj0sj0yspzp9vqeh86rplr0wf4jscez8eks4m3v9e',
+    },
+    {
+        key: 'ethereum',
+        label: 'Ξ Ethereum',
+        ariaLabel: 'Ethereum',
+        address: '0x752df0f140C6DF6c007873843D5af07fEb825559',
+    },
+    {
+        key: 'monero',
+        label: 'ɱ Monero',
+        ariaLabel: 'Monero',
+        address: '84rcyGS5aXseCrhvRzBHMZg86NzN3n5JJBpmJV42wKpKanHAum9Fb9VjoN9sCLoiCn7K2cVufBoZXJ9w9rNsnu5xCwEEB4V',
+    },
+    {
+        key: 'solana',
+        label: '◎ Solana',
+        ariaLabel: 'Solana',
+        address: 'Dr8rsFw4JGBnnPpah8iq6pR6RaH41QYpZYgmpEsoBcMC',
+    },
 ];
 
 const parseNextLink = (linkHeader: string | null): string | null => {
@@ -249,6 +284,13 @@ export function About() {
         error: serverUpdateCheckError,
     } = requestManager.useCheckForServerUpdate({ notifyOnNetworkStatusChange: true });
 
+    const copyDonationAddress = (address: string) => {
+        navigator.clipboard
+            .writeText(address)
+            .then(() => makeToast(t('global.label.copied_clipboard'), 'info'))
+            .catch(defaultPromiseErrorHandler('About::copyDonationAddress'));
+    };
+
     if (loading) {
         return <LoadingPlaceholder />;
     }
@@ -313,168 +355,257 @@ export function About() {
     }, []);
 
     return (
-        <List sx={{ pt: 0 }}>
-            <List
-                dense
-                subheader={
-                    <ListSubheader component="div" id="about-contributors">
-                        Thanks to everyone who has helped build Manatan
-                    </ListSubheader>
-                }
-            >
-                {contributorsLoading ? (
-                    <ListItem>
-                        <ListItemText primary="Loading contributors..." />
-                    </ListItem>
-                ) : contributorsError ? (
-                    <ListItem>
-                        <ListItemText primary="Failed to load contributors." secondary={contributorsError} />
-                    </ListItem>
-                ) : (
-                    <ListItem>
-                        <ListItemText
-                            primary={
-                                renderContributorInline(contributors)
-                            }
-                            secondary={
-                                contributorsUpdatedAt
-                                    ? `Updated ${new Date(contributorsUpdatedAt).toLocaleDateString()}`
-                                    : undefined
-                            }
-                        />
-                    </ListItem>
-                )}
-                <ListItem>
-                    <ListItemText secondary="Contributors who make meaningful contributions receive all backer perks." />
-                </ListItem>
-            </List>
-            <Divider />
-            <List
-                subheader={
-                    <ListSubheader component="div" id="about-donations">
-                        Support Manatan
-                    </ListSubheader>
-                }
-            >
-                <ListItem>
-                    <ListItemText
-                        primary="Donations help keep Manatan free and support development, hosting, and testing."
-                        secondary="If you find Manatan useful, consider supporting the project."
-                    />
-                </ListItem>
-                <ListItemLink to="https://ko-fi.com/manatancom" target="_blank" rel="noreferrer">
-                    <ListItemText primary={"Ko-fi"} secondary="https://ko-fi.com/manatancom" />
-                </ListItemLink>
-                <ListItem>
-                    <ListItemText
-                        primary="Backer perks"
-                        secondary={MEMBERSHIP_PERKS.join(' · ')}
-                    />
-                </ListItem>
-                <ListItem>
-                    <ListItemText
-                        primary="Backer tiers"
-                        secondary="Add your name and join the list."
-                    />
-                </ListItem>
-                {MEMBERSHIP_TIERS.map((tier) => (
-                    <ListItem key={tier.key}>
-                        <ListItemText
-                            primary={tier.label}
-                            secondary={tier.backers.length ? tier.backers.join(', ') : 'No backers yet'}
-                        />
-                    </ListItem>
-                ))}
-            </List>
-            <Divider />
-            <List
-                subheader={
-                    <ListSubheader component="div" id="about-links">
-                        {t('global.label.links')}
-                    </ListSubheader>
-                }
-            >
-                <ListItemLink to="https://github.com/KolbyML/Manatan" target="_blank" rel="noreferrer">
-                    <ListItemText
-                        primary={"Manatan"}
-                        secondary="https://github.com/KolbyML/Manatan"
-                    />
-                </ListItemLink>
-                <ListItemLink to="https://github.com/KolbyML/Manatan-WebUI" target="_blank" rel="noreferrer">
-                    <ListItemText
-                        primary={"Manatan WebUI"}
-                        secondary="https://github.com/KolbyML/Manatan-WebUI"
-                    />
-                </ListItemLink>
-                <ListItemLink to="https://discord.gg/tDAtpPN8KK" target="_blank" rel="noreferrer">
-                    <ListItemText primary={"Manatan Discord"} secondary="https://discord.gg/tDAtpPN8KK" />
-                </ListItemLink>
-                <ListItemLink to={aboutServer.github} target="_blank" rel="noreferrer">
-                    <ListItemText primary={"Suwayomi Server"} secondary={aboutServer.github} />
-                </ListItemLink>
-            </List>
-            <Divider />
-            <List
-                sx={{ padding: 0 }}
-                subheader={
-                    <ListSubheader component="div" id="about-server-info">
-                        {t('settings.server.title.server')}
-                    </ListSubheader>
-                }
-            >
-                <ListItem>
-                    <ListItemText
-                        primary={t('settings.server.title.server')}
-                        secondary={`${aboutServer.name} (${aboutServer.buildType})`}
-                    />
-                </ListItem>
-                <ListItem>
-                    <ListItemText
-                        primary={t('settings.about.server.label.version')}
-                        secondary={
-                            <VersionInfo
-                                version={aboutServer.version}
-                                isCheckingForUpdate={isCheckingForServerUpdate}
-                                isUpdateAvailable={isServerUpdateAvailable}
-                                updateCheckError={serverUpdateCheckError}
-                                checkForUpdate={checkForServerUpdate}
-                                downloadAsLink
-                                url={selectedServerChannelInfo?.url ?? ''}
+        <Box sx={{ px: { xs: 2, md: 3 }, py: 2 }}>
+            <Stack spacing={2.5}>
+                <Paper
+                    variant="outlined"
+                    sx={{
+                        p: 2.5,
+                        borderRadius: 2,
+                        background:
+                            'linear-gradient(135deg, rgba(46, 204, 113, 0.12), rgba(52, 152, 219, 0.08))',
+                    }}
+                >
+                    <Stack
+                        direction={{ xs: 'column', md: 'row' }}
+                        spacing={2}
+                        alignItems={{ xs: 'flex-start', md: 'center' }}
+                        justifyContent="space-between"
+                    >
+                        <Box>
+                            <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: -0.4 }}>
+                                Manatan
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                The seemless way to immerse in Anime, Manga, Lightnovels, and EPUBs with fast dictionary lookup and Anki workflows.
+                            </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                            <Chip label={`Server ${aboutServer.buildType}`} size="small" variant="outlined" />
+                            <Chip label={`Version ${aboutServer.version}`} size="small" variant="outlined" />
+                            <Chip
+                                label={`Build ${dateFormatter.format(epochToDate(Number(aboutServer.buildTime)).toDate())}`}
+                                size="small"
+                                variant="outlined"
                             />
-                        }
-                    />
-                </ListItem>
-                <ListItem>
-                    <ListItemText
-                        primary={t('settings.about.server.label.build_time')}
-                        secondary={epochToDate(Number(aboutServer.buildTime)).toString()}
-                    />
-                </ListItem>
-            </List>
-            <Divider />
-            <List
-                sx={{ padding: 0 }}
-                subheader={
-                    <ListSubheader component="div" id="about-webui-info">
-                        {t('settings.webui.title.webui')}
-                    </ListSubheader>
-                }
-            >
-                <ListItem>
-                    <ListItemText
-                        primary={t('settings.about.webui.label.channel')}
-                        secondary="BUNDLED"
-                    />
-                </ListItem>
-                <ListItem>
-                    <ListItemText
-                        primary={t('settings.about.webui.label.version')}
-                        secondary={
-                            <WebUIVersionInfo />
-                        }
-                    />
-                </ListItem>
-            </List>
-        </List>
+                        </Stack>
+                    </Stack>
+                </Paper>
+
+                <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: '100%' }}>
+                            <Stack spacing={2}>
+                                <Typography variant="h6">Support Manatan</Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Donations help keep Manatan free and support development, hosting, and testing.
+                                </Typography>
+                                <List dense disablePadding>
+                                    <ListItemLink
+                                        to="https://ko-fi.com/manatancom"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        sx={{ borderRadius: 1, px: 1, py: 0.75 }}
+                                    >
+                                        <ListItemText primary="Ko-fi" secondary="https://ko-fi.com/manatancom" />
+                                    </ListItemLink>
+                                </List>
+                                <Divider />
+                                <Stack spacing={1}>
+                                    <Typography variant="subtitle2">Crypto</Typography>
+                                    <List
+                                        dense
+                                        disablePadding
+                                        sx={{ '& .MuiListItemText-secondary': { wordBreak: 'break-all' } }}
+                                    >
+                                        {DONATION_ADDRESSES.map((entry) => (
+                                            <ListItem
+                                                key={entry.key}
+                                                disableGutters
+                                                secondaryAction={
+                                                    <IconButton
+                                                        edge="end"
+                                                        size="small"
+                                                        aria-label={`Copy ${entry.ariaLabel} address`}
+                                                        onClick={() => copyDonationAddress(entry.address)}
+                                                    >
+                                                        <ContentCopyIcon fontSize="small" />
+                                                    </IconButton>
+                                                }
+                                                sx={{ py: 0.75, pr: 1.5 }}
+                                            >
+                                                <ListItemText primary={entry.label} secondary={entry.address} />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Stack>
+                                <Divider />
+                                <Stack spacing={1}>
+                                    <Typography variant="subtitle2">Backer perks</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {MEMBERSHIP_PERKS.join(' · ')}
+                                    </Typography>
+                                </Stack>
+                            </Stack>
+                        </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: '100%' }}>
+                            <Stack spacing={2}>
+                                <Typography variant="h6">Contributors</Typography>
+                                {contributorsLoading ? (
+                                    <Typography variant="body2">Loading contributors...</Typography>
+                                ) : contributorsError ? (
+                                    <Typography variant="body2" color="error">
+                                        Failed to load contributors. {contributorsError}
+                                    </Typography>
+                                ) : (
+                                    <Typography component="div" variant="body2">
+                                        {renderContributorInline(contributors)}
+                                    </Typography>
+                                )}
+                                {contributorsUpdatedAt && (
+                                    <Typography variant="caption" color="text.secondary">
+                                        Updated {new Date(contributorsUpdatedAt).toLocaleDateString()}
+                                    </Typography>
+                                )}
+                                <Typography variant="body2" color="text.secondary">
+                                    Contributors who make meaningful contributions receive all backer perks.
+                                </Typography>
+                                <Divider />
+                                <Stack spacing={1}>
+                                    <Typography variant="h6">Backers</Typography>
+                                    <Stack spacing={1}>
+                                        {MEMBERSHIP_TIERS.map((tier) => (
+                                            <Box
+                                                key={tier.key}
+                                                sx={{
+                                                    p: 1.25,
+                                                    borderRadius: 1.5,
+                                                    border: '1px solid',
+                                                    borderColor: 'divider',
+                                                    backgroundColor: 'action.hover',
+                                                }}
+                                            >
+                                                <Typography variant="subtitle2">{tier.label}</Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {tier.backers.length ? tier.backers.join(', ') : 'No backers yet'}
+                                                </Typography>
+                                            </Box>
+                                        ))}
+                                    </Stack>
+                                </Stack>
+                            </Stack>
+                        </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: '100%' }}>
+                            <Stack spacing={2}>
+                                <Typography variant="h6">{t('global.label.links')}</Typography>
+                                <List dense disablePadding>
+                                    <ListItemLink
+                                        to="https://github.com/KolbyML/Manatan"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        sx={{ borderRadius: 1, px: 1, py: 0.75 }}
+                                    >
+                                        <ListItemText
+                                            primary="Manatan"
+                                            secondary="https://github.com/KolbyML/Manatan"
+                                        />
+                                    </ListItemLink>
+                                    <ListItemLink
+                                        to="https://github.com/KolbyML/Manatan-WebUI"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        sx={{ borderRadius: 1, px: 1, py: 0.75 }}
+                                    >
+                                        <ListItemText
+                                            primary="Manatan WebUI"
+                                            secondary="https://github.com/KolbyML/Manatan-WebUI"
+                                        />
+                                    </ListItemLink>
+                                    <ListItemLink
+                                        to="https://discord.gg/tDAtpPN8KK"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        sx={{ borderRadius: 1, px: 1, py: 0.75 }}
+                                    >
+                                        <ListItemText
+                                            primary="Manatan Discord"
+                                            secondary="https://discord.gg/tDAtpPN8KK"
+                                        />
+                                    </ListItemLink>
+                                    <ListItemLink
+                                        to={aboutServer.github}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        sx={{ borderRadius: 1, px: 1, py: 0.75 }}
+                                    >
+                                        <ListItemText primary="Suwayomi Server" secondary={aboutServer.github} />
+                                    </ListItemLink>
+                                </List>
+                            </Stack>
+                        </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: '100%' }}>
+                            <Stack spacing={2}>
+                                <Typography variant="h6">Build info</Typography>
+                                <Stack
+                                    direction={{ xs: 'column', md: 'row' }}
+                                    spacing={2}
+                                    divider={
+                                        <Divider
+                                            flexItem
+                                            orientation="vertical"
+                                            sx={{ display: { xs: 'none', md: 'block' } }}
+                                        />
+                                    }
+                                >
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography variant="subtitle2">{t('settings.server.title.server')}</Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {aboutServer.name} ({aboutServer.buildType})
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                            {t('settings.about.server.label.version')}
+                                        </Typography>
+                                        <VersionInfo
+                                            version={aboutServer.version}
+                                            isCheckingForUpdate={isCheckingForServerUpdate}
+                                            isUpdateAvailable={isServerUpdateAvailable}
+                                            updateCheckError={serverUpdateCheckError}
+                                            checkForUpdate={checkForServerUpdate}
+                                            downloadAsLink
+                                            url={selectedServerChannelInfo?.url ?? ''}
+                                        />
+                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                            {t('settings.about.server.label.build_time')}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {epochToDate(Number(aboutServer.buildTime)).toString()}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography variant="subtitle2">{t('settings.webui.title.webui')}</Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {t('settings.about.webui.label.channel')}: BUNDLED
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                            {t('settings.about.webui.label.version')}
+                                        </Typography>
+                                        <WebUIVersionInfo />
+                                    </Box>
+                                </Stack>
+                            </Stack>
+                        </Paper>
+                    </Grid>
+                </Grid>
+            </Stack>
+        </Box>
     );
 }
